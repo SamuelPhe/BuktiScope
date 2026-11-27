@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import io
 
 import pytest
@@ -143,3 +144,57 @@ def test_near_duplicate_is_informational_and_does_not_increase_risk(monkeypatch)
 def test_uniform_images_skip_perceptual_hash():
     image = Image.new("RGB", (64, 64), "white")
     assert perceptual_hash(image) is None
+
+
+def jpeg_bytes_with_local_texture() -> bytes:
+    from PIL import ImageDraw
+    import random
+
+    image = Image.new("RGB", (960, 960), "#f7f7f7")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((50, 50, 910, 910), outline="#b0b0b0", width=3)
+    draw.text((100, 120), "BUKTISCOPE DEMO - SAMPLE TRANSFER", fill="#202020")
+    draw.text((100, 220), "Rp 250.000", fill="#202020")
+    randomizer = random.Random(42)
+    noise = Image.new("RGB", (220, 220), "white")
+    noise_pixels = noise.load()
+    for y in range(noise.height):
+        for x in range(noise.width):
+            value = randomizer.randrange(80, 176)
+            noise_pixels[x, y] = (value, value, value)
+    image.paste(noise, (600, 600))
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", quality=98)
+    return buffer.getvalue()
+
+
+def test_ela_returns_bounded_regions_and_overlay():
+    result = Analyzer.create().analyze(jpeg_bytes_with_local_texture(), "texture.jpg")
+    ela = result["ela"]
+
+    assert ela is not None
+    assert ela["available"] is True
+    assert len(ela["hotspots"]) <= 3
+    assert ela["preview_data_url"].startswith("data:image/png;base64,")
+    preview_bytes = base64.b64decode(ela["preview_data_url"].split(",", 1)[1])
+    preview = Image.open(io.BytesIO(preview_bytes))
+    assert preview.mode == "RGB"
+    assert max(preview.size) <= 650
+    for region in ela["hotspots"]:
+        assert 0 <= region["x"] < result["image"]["width"]
+        assert 0 <= region["y"] < result["image"]["height"]
+        assert region["width"] > 0
+        assert region["height"] > 0
+        assert region["x"] + region["width"] <= result["image"]["width"]
+        assert region["y"] + region["height"] <= result["image"]["height"]
+
+
+def test_ela_hotspots_are_informational_and_do_not_change_risk():
+    result = Analyzer.create().analyze(jpeg_bytes_with_local_texture(), "texture.jpg")
+    assert result["risk_score"] == 0
+    assert all(item["points"] == 0 for item in result["findings"] if item["code"] == "ela_preview")
+
+
+def test_png_does_not_claim_to_have_ela_hotspots():
+    result = Analyzer.create().analyze(png_bytes(), "receipt.png")
+    assert result["ela"] is None

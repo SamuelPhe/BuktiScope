@@ -21,7 +21,7 @@ This project does not claim to be the first tool of its kind. Its intended contr
 - Optionally compares OCR text with an expected order amount and recipient name. This is text matching, not account verification.
 - Inspects available EXIF/basic metadata and treats editing-software metadata as a weak signal only.
 - Identifies byte-identical images already analyzed during the current process using SHA-256, and can flag visually similar exports using a perceptual hash (pHash). Similarity is informational and does not add risk points. It does not retain image contents.
-- Displays an ELA heatmap for JPEG files as a visual aid. ELA does not add points to the risk score.
+- Displays an ELA heatmap for JPEG files with up to three relative high-difference tiles as a navigation aid. The hotspot overlay does not add points to the risk score and does not identify tampered regions with certainty.
 - Shows a transparent, rule-based risk score and a reason for each scored signal.
 - Processes request image bytes in memory; it does not save uploaded evidence to an upload directory or database.
 
@@ -144,6 +144,7 @@ The request body is streamed with a 10 MB limit to avoid multipart temporary-fil
 - [x] Indonesian/English OCR integration when installed locally.
 - [x] EXIF metadata review and JPEG ELA visualization.
 - [x] Exact and perceptual near-duplicate screening within the current process session.
+- [x] Relative JPEG ELA hotspot regions for human review (informational only).
 - [x] Order amount/recipient text comparison.
 - [x] Explainable scoring, API, tests, and synthetic example generator.
 - [ ] Curated, consented, de-identified evaluation dataset with documented provenance.

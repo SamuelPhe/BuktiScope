@@ -118,7 +118,17 @@ function renderResult(data) {
   ).join('');
   const ela = document.querySelector('#ela-content');
   if (data.ela && data.ela.available) {
-    ela.innerHTML = '<img src="' + data.ela.preview_data_url + '" alt="Peta perbedaan ELA untuk gambar JPEG">' +
+    const hotspots = Array.isArray(data.ela.hotspots) ? data.ela.hotspots : [];
+    const hotspotMarkup = hotspots.length
+      ? '<div class="hotspot-list"><b>Area dengan perbedaan relatif tertinggi</b>' +
+        hotspots.map((region, index) =>
+          '<div><span>' + (index + 1) + '</span><small>X ' + region.x + ' · Y ' + region.y +
+          ' · ' + region.width + ' × ' + region.height + ' px</small><em>mean ' +
+          region.mean_difference + '</em></div>'
+        ).join('') + '</div>'
+      : '<p class="muted-copy">Tidak ditemukan tile dengan perbedaan relatif yang melewati ambang tampilan. Ini bukan bukti bahwa gambar tidak diedit.</p>';
+    ela.innerHTML = '<img src="' + data.ela.preview_data_url + '" alt="Peta ELA dengan kotak area perbedaan relatif">' +
+      hotspotMarkup +
       '<p class="muted-copy">Rata-rata perbedaan ' + data.ela.mean_difference + '; persentil 95 ' +
       data.ela.p95_difference + '. ' + escapeHtml(data.ela.interpretation) + '</p>';
   } else {

@@ -7,7 +7,7 @@
 3. The analyzer computes SHA-256 and a 64-bit perceptual hash, inspects basic metadata, and checks exact and visually similar images seen during this process session. Perceptual matches use Hamming distance <= 6 and are informational only; they do not increase risk score.
 4. Tesseract OCR (optional) receives a prepared in-memory PNG through stdin and returns TSV through stdout; the app does not create OCR image temp files.
 5. Parsed IDR amounts and optional recipient text are compared with user-supplied order values.
-6. JPEG images receive an ELA visualization. ELA metrics are informational and do not affect the risk score.
+6. JPEG images receive an ELA visualization. The image is divided into a 4x4 grid; up to three tiles with relative difference above median + 2.5 MAD (and a 0.5 intensity floor) are highlighted. Coordinates are reported in original-image pixels. This only guides visual review; normal text, edges, gradients, resizing, and compression can create hotspots. ELA metrics are informational and do not affect the risk score.
 7. A transparent heuristic score and a list of findings are returned as JSON. The browser renders the report.
 
 ## Data retention
