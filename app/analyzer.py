@@ -13,7 +13,7 @@ from functools import lru_cache
 from typing import Any
 
 import numpy as np
-from PIL import ExifTags, Image, ImageChops, ImageDraw, ImageEnhance, ImageOps, UnidentifiedImageError
+from PIL import ExifTags, Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageOps, UnidentifiedImageError
 
 from .perceptual import hamming_distance, perceptual_hash
 
@@ -138,7 +138,7 @@ class Analyzer:
                 0,
             ))
 
-        ocr = _run_ocr(image)
+        ocr = _run_ocr_with_fallback(image)
         extracted_amounts = _extract_amounts(ocr["text"])
         amount_regions = _locate_amount_regions(ocr["text"], ocr.get("words", []))
         ocr_overlay = _ocr_overlay(image, amount_regions)
@@ -234,6 +234,7 @@ class Analyzer:
                 "language": ocr["language"],
                 "text": ocr["text"][:5_000],
                 "confidence": ocr["confidence"],
+                "ocr_strategy": ocr.get("ocr_strategy", "grayscale_psm6"),
                 "transfer_keywords": transfer_term_hits,
                 "amounts_idr": extracted_amounts,
                 "amount_regions": amount_regions,
@@ -301,7 +302,7 @@ def _tesseract_languages() -> tuple[str, ...]:
         return ()
 
 
-def _run_ocr(image: Image.Image) -> dict[str, Any]:
+def _run_ocr(image: Image.Image, psm: int = 6) -> dict[str, Any]:
     binary = _tesseract_binary()
     languages = _tesseract_languages()
     if not binary or not languages:
@@ -317,7 +318,7 @@ def _run_ocr(image: Image.Image) -> dict[str, Any]:
     prepared.save(image_buffer, format="PNG", optimize=True)
     try:
         result = subprocess.run(
-            [binary, "stdin", "stdout", "-l", selected, "--psm", "6", "tsv"],
+            [binary, "stdin", "stdout", "-l", selected, "--psm", str(psm), "tsv"],
             input=image_buffer.getvalue(), capture_output=True, timeout=8, check=True,
         )
         decoded = result.stdout.decode("utf-8", errors="replace")
@@ -360,6 +361,33 @@ def _run_ocr(image: Image.Image) -> dict[str, Any]:
         }
     except Exception:
         return {"available": True, "language": selected, "text": "", "confidence": None, "words": []}
+
+
+def _run_ocr_with_fallback(image: Image.Image) -> dict[str, Any]:
+    """Try alternate OCR preparation only when the default pass finds no IDR amount."""
+    primary = _run_ocr(image)
+    primary["ocr_strategy"] = "grayscale_psm6"
+    if not primary.get("available") or _extract_amounts(primary.get("text", "")):
+        return primary
+
+    # Sharpening is a targeted fallback for mild blur; keep the original image
+    # as the first choice so already-readable receipts are not degraded.
+    sharpened = ImageOps.grayscale(image).filter(
+        ImageFilter.UnsharpMask(radius=2, percent=250, threshold=2)
+    )
+    sharpened_result = _run_ocr(sharpened)
+    if sharpened_result.get("available") and _extract_amounts(sharpened_result.get("text", "")):
+        sharpened_result["ocr_strategy"] = "unsharp_mask_psm6"
+        return sharpened_result
+
+    # Sparse-text segmentation can recover amounts missed by PSM 6 on
+    # perspective-distorted layouts. Word boxes remain mapped to original pixels.
+    sparse_result = _run_ocr(image, psm=11)
+    if sparse_result.get("available") and _extract_amounts(sparse_result.get("text", "")):
+        sparse_result["ocr_strategy"] = "grayscale_psm11"
+        return sparse_result
+
+    return primary
 
 
 def _parse_idr_number(raw: str) -> int | None:
