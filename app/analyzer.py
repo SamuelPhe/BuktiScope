@@ -13,7 +13,7 @@ from functools import lru_cache
 from typing import Any
 
 import numpy as np
-from PIL import ExifTags, Image, ImageChops, ImageEnhance, ImageOps, UnidentifiedImageError
+from PIL import ExifTags, Image, ImageChops, ImageDraw, ImageEnhance, ImageOps, UnidentifiedImageError
 
 from .perceptual import hamming_distance, perceptual_hash
 
@@ -373,6 +373,7 @@ def _normalize_recipient(value: str | None) -> str:
 def _ela_analysis(image: Image.Image, image_format: str) -> dict[str, Any] | None:
     if image_format != "JPEG":
         return None
+
     buffer = io.BytesIO()
     image.save(buffer, format="JPEG", quality=90)
     buffer.seek(0)
@@ -383,8 +384,63 @@ def _ela_analysis(image: Image.Image, image_format: str) -> dict[str, Any] | Non
     values = np.asarray(grayscale, dtype=np.float32)
     mean = float(values.mean())
     p95 = float(np.percentile(values, 95))
+
+    # Compare 4x4 tiles against the image's own ELA distribution.
+    # These are relative compression-difference hotspots, not manipulation labels.
+    tile_rows = 4
+    tile_columns = 4
+    height, width = values.shape
+    tile_scores: list[dict[str, float | int]] = []
+    row_edges = np.linspace(0, height, tile_rows + 1, dtype=int)
+    col_edges = np.linspace(0, width, tile_columns + 1, dtype=int)
+    for row in range(tile_rows):
+        for column in range(tile_columns):
+            y0, y1 = int(row_edges[row]), int(row_edges[row + 1])
+            x0, x1 = int(col_edges[column]), int(col_edges[column + 1])
+            tile = values[y0:y1, x0:x1]
+            if tile.size == 0:
+                continue
+            tile_scores.append({
+                "x": x0,
+                "y": y0,
+                "width": x1 - x0,
+                "height": y1 - y0,
+                "mean": float(tile.mean()),
+                "p95": float(np.percentile(tile, 95)),
+            })
+
+    tile_means = np.asarray([item["mean"] for item in tile_scores], dtype=np.float32)
+    median = float(np.median(tile_means)) if tile_means.size else 0.0
+    mad = float(np.median(np.abs(tile_means - median))) if tile_means.size else 0.0
+    threshold = median + max(2.5 * mad, 0.5)
+    candidates = [item for item in tile_scores if item["mean"] > threshold]
+    candidates.sort(key=lambda item: (item["mean"], item["p95"]), reverse=True)
+    hotspots = [
+        {
+            "x": int(item["x"]),
+            "y": int(item["y"]),
+            "width": int(item["width"]),
+            "height": int(item["height"]),
+            "mean_difference": round(float(item["mean"]), 3),
+            "p95_difference": round(float(item["p95"]), 3),
+        }
+        for item in candidates[:3]
+    ]
+
     preview = ImageEnhance.Contrast(grayscale).enhance(4.0)
     preview.thumbnail((650, 650))
+    if hotspots:
+        overlay = ImageDraw.Draw(preview)
+        scale_x = preview.width / width
+        scale_y = preview.height / height
+        for index, region in enumerate(hotspots, start=1):
+            x0 = int(region["x"] * scale_x)
+            y0 = int(region["y"] * scale_y)
+            x1 = int((region["x"] + region["width"]) * scale_x)
+            y1 = int((region["y"] + region["height"]) * scale_y)
+            overlay.rectangle((x0, y0, x1, y1), outline="#ff3b52", width=3)
+            overlay.text((x0 + 5, y0 + 5), str(index), fill="#ff3b52")
+
     output = io.BytesIO()
     preview.save(output, format="PNG", optimize=True)
     return {
@@ -392,6 +448,12 @@ def _ela_analysis(image: Image.Image, image_format: str) -> dict[str, Any] | Non
         "mean_difference": round(mean, 3),
         "p95_difference": round(p95, 3),
         "max_difference": int(extrema[1]),
+        "hotspot_method": "4x4 relative tile comparison; median + 2.5 MAD and 0.5 floor",
+        "hotspots": hotspots,
         "preview_data_url": "data:image/png;base64," + base64.b64encode(output.getvalue()).decode("ascii"),
-        "interpretation": "Visual aid only; compression, resizing, and normal image content can also produce bright regions.",
+        "interpretation": (
+            "Red boxes mark up to three tiles with the strongest relative JPEG recompression differences. "
+            "Normal text, edges, gradients, resizing, and compression can also create hotspots. "
+            "This is a navigation aid for human review, not evidence of editing."
+        ),
     }
