@@ -198,3 +198,42 @@ def test_ela_hotspots_are_informational_and_do_not_change_risk():
 def test_png_does_not_claim_to_have_ela_hotspots():
     result = Analyzer.create().analyze(png_bytes(), "receipt.png")
     assert result["ela"] is None
+
+
+def test_locate_amount_regions_from_ocr_word_boxes(monkeypatch):
+    from app.analyzer import _locate_amount_regions
+
+    text = "TRANSFER BERHASIL Rp 250.000"
+    words = [
+        {"text": "TRANSFER", "x": 20, "y": 20, "width": 90, "height": 18},
+        {"text": "BERHASIL", "x": 120, "y": 20, "width": 95, "height": 18},
+        {"text": "Rp", "x": 40, "y": 200, "width": 24, "height": 22},
+        {"text": "250.000", "x": 70, "y": 200, "width": 92, "height": 22},
+    ]
+    regions = _locate_amount_regions(text, words)
+
+    assert len(regions) == 1
+    assert regions[0]["amount_idr"] == 250000
+    assert regions[0]["x"] == 40
+    assert regions[0]["y"] == 200
+    assert regions[0]["width"] == 122
+    assert regions[0]["height"] == 22
+
+
+def test_analyzer_returns_ocr_overlay_for_detected_amount(monkeypatch):
+    monkeypatch.setattr(analyzer_module, "_run_ocr", lambda image: {
+        "available": True,
+        "language": "ind+eng",
+        "text": "TRANSFER BERHASIL Rp 250.000",
+        "confidence": 92.0,
+        "words": [
+            {"text": "TRANSFER", "x": 15, "y": 20, "width": 90, "height": 18},
+            {"text": "BERHASIL", "x": 110, "y": 20, "width": 100, "height": 18},
+            {"text": "Rp", "x": 30, "y": 100, "width": 20, "height": 20},
+            {"text": "250.000", "x": 55, "y": 100, "width": 90, "height": 20},
+        ],
+    })
+    result = Analyzer.create().analyze(png_bytes(), "receipt.png", expected_amount=250000)
+
+    assert result["ocr"]["amount_regions"][0]["amount_idr"] == 250000
+    assert result["ocr"]["overlay_data_url"].startswith("data:image/jpeg;base64,")
