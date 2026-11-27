@@ -265,16 +265,34 @@ def make_moire_pattern(
 def make_camera_noise(
     original: Image.Image, rng: random.Random
 ) -> tuple[Image.Image, dict[str, Any]]:
-    """Mix low-amplitude sensor-like grain and a slight white-balance shift."""
+    """Add deterministic, low-amplitude sensor-like speckles and a slight color cast."""
+    width, height = original.size
     sigma = rng.choice((16, 20, 24))
-    mix = round(rng.choice((0.035, 0.045, 0.055)), 3)
-    noise = Image.effect_noise(original.size, sigma).convert("RGB")
-    noisy = Image.blend(original, noise, mix)
+    speckle_count = 24_000
+    alpha_min = max(6, sigma // 3)
+    alpha_max = max(alpha_min + 1, sigma // 2)
+
+    # Draw a sparse high/low pixel-noise layer with the dataset's seeded RNG.
+    # Unlike Pillow's effect_noise(), this stays reproducible for a fixed seed.
+    noise_overlay = Image.new("RGBA", original.size, (0, 0, 0, 0))
+    noise_draw = ImageDraw.Draw(noise_overlay)
+    for _ in range(speckle_count):
+        x = rng.randrange(width)
+        y = rng.randrange(height)
+        value = rng.choice((0, 255))
+        alpha = rng.randint(alpha_min, alpha_max)
+        noise_draw.point((x, y), fill=(value, value, value, alpha))
+    noisy = Image.alpha_composite(original.convert("RGBA"), noise_overlay).convert("RGB")
 
     tint_alpha = rng.randint(4, 9)
     tint = Image.new("RGBA", original.size, (255, 238, 220, tint_alpha))
     noisy = Image.alpha_composite(noisy.convert("RGBA"), tint).convert("RGB")
-    return noisy, {"noise_sigma": sigma, "noise_mix": mix, "warm_tint_alpha": tint_alpha}
+    return noisy, {
+        "noise_sigma": sigma,
+        "speckle_count": speckle_count,
+        "speckle_alpha_range": [alpha_min, alpha_max],
+        "warm_tint_alpha": tint_alpha,
+    }
 
 
 def make_edge_shadow(
