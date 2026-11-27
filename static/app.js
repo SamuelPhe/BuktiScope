@@ -100,6 +100,21 @@ function renderResult(data) {
   document.querySelector('#ocr-language').textContent = data.ocr.available ? 'OCR ' + data.ocr.language : 'OCR nonaktif';
   document.querySelector('#ocr-content').textContent = data.ocr.text || (data.ocr.available ? 'Belum ada teks yang berhasil dibaca.' : 'OCR tidak aktif. Instal Tesseract untuk menyalakan pembacaan teks.');
   document.querySelector('#detected-amounts').textContent = data.ocr.amounts_idr.length ? data.ocr.amounts_idr.map(formatRupiah).join(' · ') : 'Tidak terbaca';
+  const ocrAnnotation = document.querySelector('#ocr-annotation');
+  const ocrOverlay = data.ocr.overlay_data_url;
+  if (typeof ocrOverlay === 'string' && ocrOverlay.startsWith('data:image/jpeg;base64,')) {
+    document.querySelector('#ocr-overlay-image').src = ocrOverlay;
+    document.querySelector('#ocr-region-list').innerHTML = (data.ocr.amount_regions || []).map((region, index) =>
+      '<div><span>' + (index + 1) + '</span><b>' + escapeHtml(formatRupiah(region.amount_idr)) +
+      '</b><small>X ' + region.x + ' · Y ' + region.y + ' · ' + region.width + ' × ' +
+      region.height + ' px</small></div>'
+    ).join('');
+    ocrAnnotation.classList.remove('hidden');
+  } else {
+    document.querySelector('#ocr-overlay-image').removeAttribute('src');
+    document.querySelector('#ocr-region-list').textContent = '';
+    ocrAnnotation.classList.add('hidden');
+  }
   const props = [
     ['Nama file', data.image.filename], ['Format aktual', data.image.format],
     ['Dimensi', data.image.width + ' × ' + data.image.height + ' px'], ['Ukuran', formatBytes(data.image.size_bytes)],
