@@ -20,7 +20,7 @@ REQUIRED_COLUMNS = {
 LIMITATIONS = [
     "This benchmark measures OCR reading on controlled synthetic images only.",
     "It does not measure whether a transfer occurred, whether funds arrived, or whether an image is authentic.",
-    "Synthetic layouts and simple field replacements do not represent the diversity of real receipts or sophisticated edits.",
+    "Synthetic layouts and controlled quality transforms do not reproduce real cameras, screen glare, moiré, reflections, or messenger-specific processing.",
     "Results must not be presented as real-world fraud-detection accuracy.",
 ]
 
