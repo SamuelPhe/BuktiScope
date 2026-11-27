@@ -412,7 +412,7 @@ def _locate_amount_regions(text: str, words: list[dict[str, Any]]) -> list[dict[
 
     regions: list[dict[str, Any]] = []
     amount_pattern = re.compile(
-        r"(?:\\bRp\\.?|\\bIDR\\b)\\s*[:.]?\\s*([0-9][0-9.,]*)",
+        r"(?:\bRp\.?|\bIDR\b)\s*[:.]?\s*([0-9][0-9.,]*)",
         flags=re.IGNORECASE,
     )
     for match in amount_pattern.finditer(text):
