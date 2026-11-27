@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from scripts.build_synthetic_dataset import build_dataset
+from scripts.build_synthetic_dataset import LAYOUTS, build_dataset
 
 
 def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
@@ -25,10 +25,13 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
 
     source_splits = {}
     source_variants = {}
+    source_layouts = {}
     for row in rows:
         source_id = row["source_receipt_id"]
         source_splits.setdefault(source_id, set()).add(row["split"])
         source_variants.setdefault(source_id, set()).add(row["variant"])
+        source_layouts.setdefault(source_id, set()).add(row["layout_id"])
+        assert row["layout_id"] in LAYOUTS
         assert row["synthetic_only"] == "True"
         expected_amount = int(row["expected_amount_idr"])
         visible_amount = int(row["visible_amount_idr"])
@@ -47,13 +50,20 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
             assert len(bbox) == 4
             assert 0 <= bbox[0] < bbox[2] <= 1000
             assert 0 <= bbox[1] < bbox[3] <= 1300
+            if row["variant"] == "edited_amount":
+                assert bbox == list(LAYOUTS[row["layout_id"]]["fields"]["amount"])
         else:
             assert row["manipulation_bbox_xyxy"] == ""
 
     assert all(len(splits) == 1 for splits in source_splits.values())
     assert len(source_splits) == 3
     assert all(len(variants) == 15 for variants in source_variants.values())
+    assert all(len(layouts) == 1 for layouts in source_layouts.values())
     assert summary["variants_per_source_receipt"] == 15
+    assert summary["layout_counts"] == {layout: 15 for layout in LAYOUTS}
+    assert sum(summary["layout_counts_by_split"]["train"].values()) == 15
+    assert sum(summary["layout_counts_by_split"]["validation"].values()) == 15
+    assert sum(summary["layout_counts_by_split"]["test"].values()) == 15
     assert (output / "manifest.jsonl").is_file()
     assert (output / "DATASET_CARD.json").is_file()
 
