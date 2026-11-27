@@ -150,8 +150,6 @@ def make_blurred(original: Image.Image, rng: random.Random) -> tuple[Image.Image
 
 
 def make_heavy_compression(original: Image.Image) -> tuple[Image.Image, dict[str, Any]]:
-    import io
-
     reduced_size = (650, 845)
     buffer = io.BytesIO()
     original.resize(reduced_size, Image.Resampling.LANCZOS).save(
@@ -418,6 +416,7 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
             "The synthetic layouts do not represent or certify any bank.",
             "The edited variants are simple field replacements and do not cover sophisticated forgeries.",
             "Quality variants are controlled transformations, not complete simulations of real cameras, screens, or messaging apps.",
+            "The dataset does not include realistic screen glare, moiré, reflections, camera noise, or messenger-specific processing.",
             "Do not claim real-world fraud accuracy from this dataset alone.",
         ],
     }
