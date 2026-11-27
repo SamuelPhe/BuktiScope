@@ -102,6 +102,17 @@ python scripts/build_synthetic_dataset.py --output data/synthetic --per-split 10
 
 The builder creates clean, benign-resize/recompression, and simple edited amount/recipient/date variants. Source receipt groups never cross splits. Every fixture says synthetic/no payment occurred; the data card documents limitations. Generated files under `data/synthetic/` are git-ignored. You can also generate and download the dataset from GitHub Actions → Build synthetic dataset. The workflow caps each split at 100 source receipts. See [docs/DATASET.md](docs/DATASET.md).
 
+## Evaluate OCR on synthetic data
+
+A reproducible benchmark measures whether Tesseract reads the visible Rupiah amount in each synthetic image. It defaults to the held-out test split:
+
+```bash
+python scripts/evaluate_ocr.py --manifest data/synthetic/manifest.csv --split test --output-dir data/ocr-benchmark
+```
+
+The report contains exact visible-amount match rate, amount-read coverage, confidence summaries, and per-variant breakdowns. It does not measure fraud-detection accuracy or payment authenticity. The benchmark accepts only rows marked `synthetic_only=true`, and it does not include raw OCR text in its output. See [docs/OCR_BENCHMARK.md](docs/OCR_BENCHMARK.md). A GitHub Actions workflow can generate the dataset, run the benchmark, and upload the report artifact.
+
+
 ## Generate synthetic demo images
 
 ```bash
