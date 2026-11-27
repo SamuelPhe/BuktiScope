@@ -46,7 +46,7 @@ LAYOUTS = {
         "fields": {
             "amount": (115, 630, 885, 765),
             "recipient": (115, 865, 885, 965),
-            "date": (115, 1025, 885, 1125),
+            "date": (115, 985, 885, 1085),
         },
         "accent": "#5d5943",
         "card_radius": 8,
@@ -119,9 +119,14 @@ def make_receipt(
         draw.text((145, 140), "FICTIONAL ITEMIZED SLIP", font=load_font(19, True), fill="#777365")
         summary_title = "PAYMENT INFORMATION"
 
-    draw.text((125, 295), summary_title, font=load_font(32, True), fill="#1b2c46")
-    draw.text((125, 365), "Status contoh", font=load_font(20), fill="#8290a4")
-    draw.text((125, 405), "SUCCESS (SIMULATION)", font=load_font(23, True), fill="#18866c")
+    if layout["style"] == "compact":
+        draw.text((125, 265), summary_title, font=load_font(32, True), fill="#1b2c46")
+        draw.text((125, 325), "Status contoh", font=load_font(20), fill="#8290a4")
+        draw.text((125, 370), "SUCCESS (SIMULATION)", font=load_font(23, True), fill="#18866c")
+    else:
+        draw.text((125, 295), summary_title, font=load_font(32, True), fill="#1b2c46")
+        draw.text((125, 365), "Status contoh", font=load_font(20), fill="#8290a4")
+        draw.text((125, 405), "SUCCESS (SIMULATION)", font=load_font(23, True), fill="#18866c")
 
     amount_box = fields["amount"]
     recipient_box = fields["recipient"]
@@ -502,9 +507,9 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
     cursor = 0
     for split in split_names:
         split_indices = source_indices[cursor:cursor + per_split]
-        for position, index in enumerate(split_indices):
+        for index in split_indices:
             split_by_index[index] = split
-            layout_by_index[index] = layout_names[position % len(layout_names)]
+            layout_by_index[index] = layout_names[(index - 1) % len(layout_names)]
         cursor += per_split
 
     rows: list[dict[str, Any]] = []
