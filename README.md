@@ -111,7 +111,7 @@ A reproducible benchmark measures whether Tesseract reads the visible Rupiah amo
 python -m scripts.evaluate_ocr --manifest data/synthetic/manifest.csv --split test --output-dir data/ocr-benchmark
 ```
 
-The report contains exact visible-amount match rate, amount-read coverage, confidence summaries, and per-variant breakdowns. It does not measure fraud-detection accuracy or payment authenticity. The benchmark accepts only rows marked `synthetic_only=true`, and it does not include raw OCR text in its output. See [docs/OCR_BENCHMARK.md](docs/OCR_BENCHMARK.md). A GitHub Actions workflow can generate the dataset, run the benchmark, and upload the report artifact.
+The report contains exact visible-amount match rate, amount-read coverage, confidence summaries, and per-variant/per-layout breakdowns. It does not measure fraud-detection accuracy or payment authenticity. The benchmark accepts only rows marked `synthetic_only=true`, and it does not include raw OCR text in its output. See [docs/OCR_BENCHMARK.md](docs/OCR_BENCHMARK.md). A GitHub Actions workflow can generate the dataset, run the benchmark, and upload the report artifact.
 
 
 ## Generate synthetic demo images
