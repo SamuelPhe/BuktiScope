@@ -96,7 +96,9 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
             assert 14 <= parameters["line_opacity"] <= 24
         elif row["variant"] == "camera_noise":
             assert parameters["noise_sigma"] in {16, 20, 24}
-            assert 0 < parameters["noise_mix"] <= 0.055
+            assert parameters["speckle_count"] == 24_000
+            assert len(parameters["speckle_alpha_range"]) == 2
+            assert parameters["speckle_alpha_range"][0] < parameters["speckle_alpha_range"][1]
         elif row["variant"] == "edge_shadow":
             assert parameters["side"] in {"left", "right"}
             assert 42 <= parameters["opacity"] <= 72
@@ -124,6 +126,13 @@ def test_synthetic_dataset_builder_is_reproducible(tmp_path):
     build_dataset(first, per_split=1, seed=42)
     build_dataset(second, per_split=1, seed=42)
     assert (first / "manifest.csv").read_bytes() == (second / "manifest.csv").read_bytes()
+
+    with (first / "manifest.csv").open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    camera_row = next(row for row in rows if row["variant"] == "camera_noise")
+    first_image = first / camera_row["path"]
+    second_image = second / camera_row["path"]
+    assert first_image.read_bytes() == second_image.read_bytes()
 
 
 def test_synthetic_dataset_builder_caps_dataset_size(tmp_path):
