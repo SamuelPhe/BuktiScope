@@ -17,7 +17,7 @@ From the repository root:
 python scripts/build_synthetic_dataset.py --output data/synthetic --per-split 10 --seed 20261127
 ```
 
-The default creates 30 source receipts and 150 image files (five variants per source). The destination must not already contain files; the builder refuses to overwrite non-empty directories. Choose another output path for another run.
+The default creates 30 source receipts and 150 image files (five variants per source). The destination must not already contain files; the builder refuses to overwrite non-empty directories. Choose another output path for another run. The supported range is 1–100 source receipts per split.
 
 ## Variants
 
@@ -55,3 +55,8 @@ Each edited sample includes `manipulation_bbox_xyxy`, the affected field region 
 ## Reproducibility
 
 The generator uses a deterministic random seed. The CSV manifest should be byte-for-byte reproducible for the same script version, seed, and `--per-split` value. Image file bytes can vary if the Pillow/JPEG encoder version changes.
+
+
+## Generate an artifact on GitHub
+
+Open the repository's **Actions** tab and choose **Build synthetic dataset**, then select **Run workflow**. Enter the source-receipt count per split (1–100) and a seed. The workflow runs the generator and uploads a ZIP artifact retained for seven days. It does not commit generated images to the repository.
