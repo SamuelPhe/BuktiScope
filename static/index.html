@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101b2d">
+  <meta name="description" content="Pemeriksaan risiko gambar bukti transfer secara lokal dan transparan.">
+  <title>BuktiScope — Pemeriksa Bukti Transfer</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+  <header class="topbar shell">
+    <a class="brand" href="/" aria-label="BuktiScope beranda">
+      <span class="brand-mark">⌁</span>
+      <span>Bukti<span class="brand-accent">Scope</span><small>TRANSFER EVIDENCE ANALYZER</small></span>
+    </a>
+    <nav><a href="#cara-kerja">Cara kerja</a><a href="/docs" target="_blank" rel="noreferrer">API docs ↗</a><a class="github-link" href="https://github.com/SamuelPhe/BuktiScope" target="_blank" rel="noreferrer">GitHub ↗</a></nav>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow"><span class="pulse"></span> LOCAL-FIRST · PRIVACY-AWARE · OPEN SOURCE</div>
+        <h1>Periksa bukti transfer.<br><em>Pahami risikonya.</em></h1>
+        <p class="hero-lede">Analisis gambar, baca informasi transaksi, dan temukan sinyal yang perlu diperiksa lebih lanjut. Tanpa mengunggah bukti ke layanan analisis pihak ketiga.</p>
+        <div class="hero-points"><span>✓ Gambar diproses lokal</span><span>✓ Temuan dapat dijelaskan</span><span>✓ Bukan verifikasi bank</span></div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="orbit orbit-a"></div><div class="orbit orbit-b"></div>
+        <div class="receipt-card">
+          <div class="receipt-top"><span class="receipt-label">SAMPLE RECEIPT · DEMO ONLY</span></div>
+          <div class="receipt-bank">BUKTISCOPE DEMO <small>SYNTHETIC</small></div>
+          <div class="receipt-caption">TOTAL TRANSFER</div><div class="receipt-amount">Rp 250.000</div>
+          <div class="receipt-rule"></div><div class="receipt-row"><span>Penerima</span><b>SAMPLE MERCHANT</b></div><div class="receipt-row"><span>Status contoh</span><b class="fake-success">Simulasi</b></div>
+          <div class="receipt-stamp">SAMPLE ONLY</div>
+        </div>
+        <div class="scan-chip"><span class="scan-icon">⌕</span><span><b>Image screening</b><small>Analisis multi-sinyal</small></span><span class="scan-check">✓</span></div>
+        <div class="art-caption">Ilustrasi data sintetis, bukan bank sungguhan</div>
+      </div>
+    </section>
+
+    <section class="workspace" id="analyzer">
+      <div class="section-heading"><div><div class="eyebrow muted">ANALYSIS WORKSPACE</div><h2>Mulai pemeriksaan</h2></div><div class="privacy-pill">● Tidak disimpan ke disk</div></div>
+      <div class="workspace-grid">
+        <form class="upload-panel" id="analyze-form">
+          <label class="field-label" for="receipt-file">Bukti transfer</label>
+          <label class="dropzone" id="dropzone" for="receipt-file">
+            <input id="receipt-file" name="file" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" required>
+            <span class="upload-icon">↑</span><strong>Tarik gambar ke sini</strong><span class="drop-sub">atau <u>pilih file dari perangkat</u></span>
+            <span class="format-note">JPG, PNG, WEBP · Maksimum 10 MB</span>
+          </label>
+          <div class="file-preview hidden" id="file-preview"><span class="file-icon">▧</span><span class="file-meta"><b id="file-name">receipt.jpg</b><small id="file-size">0 KB</small></span><button type="button" class="remove-file" id="remove-file" aria-label="Hapus gambar">×</button></div>
+          <div class="field-row">
+            <div class="field"><label class="field-label" for="expected-amount">Nominal pesanan <span>Opsional</span></label><div class="input-wrap"><span>Rp</span><input id="expected-amount" inputmode="numeric" placeholder="250000" autocomplete="off"></div></div>
+            <div class="field"><label class="field-label" for="expected-recipient">Nama penerima <span>Opsional</span></label><input id="expected-recipient" type="text" maxlength="100" placeholder="Nama pada pesanan" autocomplete="off"></div>
+          </div>
+          <p class="field-hint">Data ini hanya dipakai untuk pencocokan teks lokal. Jangan masukkan nomor rekening atau data pribadi yang tidak diperlukan.</p>
+          <button class="analyze-button" id="submit-button" type="submit"><span class="button-label">Analisis bukti transfer</span><span class="button-arrow">↗</span></button>
+          <p class="upload-error hidden" id="upload-error" role="alert"></p>
+        </form>
+        <aside class="what-panel">
+          <div class="what-icon">✳</div><h3>Apa yang diperiksa?</h3>
+          <div class="check-list">
+            <div><span class="check-symbol">01</span><span><b>OCR & informasi teks</b><small>Membaca nominal dan teks yang terlihat.</small></span></div>
+            <div><span class="check-symbol">02</span><span><b>Metadata & format file</b><small>Memeriksa format aktual dan metadata gambar.</small></span></div>
+            <div><span class="check-symbol">03</span><span><b>Sidik jari duplikat</b><small>Mengenali file identik dalam sesi ini.</small></span></div>
+            <div><span class="check-symbol">04</span><span><b>ELA untuk JPEG</b><small>Peta perbedaan kompresi sebagai alat bantu visual.</small></span></div>
+          </div>
+          <div class="what-foot">ⓘ ELA dan metadata bukan bukti pemalsuan. Hasil selalu perlu penilaian manusia.</div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="results hidden" id="results" aria-live="polite">
+      <div class="section-heading"><div><div class="eyebrow muted">SCREENING REPORT</div><h2>Hasil pemeriksaan</h2></div><button class="text-button" id="new-analysis">↻ Pemeriksaan baru</button></div>
+      <div class="result-overview" id="result-overview"></div>
+      <div class="result-grid">
+        <div class="result-card"><div class="card-heading"><h3>Temuan analisis</h3><span id="finding-count" class="count-pill">0 temuan</span></div><div id="findings-list" class="findings-list"></div></div>
+        <div class="result-card"><div class="card-heading"><h3>Teks yang terbaca</h3><span class="subtle-tag" id="ocr-language">OCR</span></div><div id="ocr-content" class="ocr-content"></div><div class="amounts-box"><span>Nominal Rupiah terdeteksi</span><b id="detected-amounts">—</b></div></div>
+      </div>
+      <div class="result-grid secondary-grid">
+        <div class="result-card"><div class="card-heading"><h3>Properti file</h3></div><div id="file-properties" class="properties-grid"></div></div>
+        <div class="result-card"><div class="card-heading"><h3>ELA heatmap</h3><span class="subtle-tag">JPEG saja</span></div><div id="ela-content" class="ela-content"><p class="muted-copy">Peta ELA akan muncul untuk gambar JPEG.</p></div></div>
+      </div>
+      <div class="disclaimer-banner"><span>!</span><p id="disclaimer-text"></p></div>
+    </section>
+
+    <section class="how-section" id="cara-kerja">
+      <div class="how-intro"><div class="eyebrow muted">DESIGNED FOR HONEST SIGNALS</div><h2>Bukan vonis.<br><em>Alat bantu keputusan.</em></h2><p>BuktiScope memisahkan apa yang benar-benar terbaca dari hal yang hanya mengindikasikan risiko. Tidak ada model ajaib yang bisa membuktikan uang masuk hanya dari screenshot.</p></div>
+      <div class="how-cards"><div><span>01 / INPUT</span><b>Gambar diperiksa secara lokal</b><p>File tidak disimpan sebagai arsip dan tidak dikirim ke API analisis eksternal.</p></div><div><span>02 / ANALYSIS</span><b>Sinyal dan keterbatasan ditampilkan</b><p>Setiap temuan punya alasan. OCR yang gagal tidak otomatis dianggap penipuan.</p></div><div><span>03 / DECISION</span><b>Konfirmasi melalui sumber resmi</b><p>Cocokkan mutasi rekening atau konfirmasi resmi penyedia pembayaran.</p></div></div>
+    </section>
+  </main>
+  <footer class="shell footer"><a class="brand footer-brand" href="/"><span class="brand-mark small-mark">B</span><span>Bukti<span class="brand-accent">Scope</span></span></a><span>Open source · Pemeriksaan yang lebih transparan.</span><span class="footer-note">Not bank verification.</span></footer>
+</body>
+</html>
