@@ -12,7 +12,7 @@ Install Tesseract with Indonesian and English language data, then generate the s
 
 ```bash
 python scripts/build_synthetic_dataset.py --output data/synthetic --per-split 10 --seed 20261127
-python scripts/evaluate_ocr.py --manifest data/synthetic/manifest.csv --split test --output-dir data/ocr-benchmark
+python -m scripts.evaluate_ocr --manifest data/synthetic/manifest.csv --split test --output-dir data/ocr-benchmark
 ```
 
 The default evaluates the held-out `test` split. Use `--split all` only for exploratory checks; do not tune an OCR pipeline against the test split and then present the same result as an independent test.
