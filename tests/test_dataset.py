@@ -24,10 +24,19 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
     assert len(rows) == 30
 
     source_splits = {}
+    source_variants = {}
     for row in rows:
         source_id = row["source_receipt_id"]
         source_splits.setdefault(source_id, set()).add(row["split"])
+        source_variants.setdefault(source_id, set()).add(row["variant"])
         assert row["synthetic_only"] == "True"
+        expected_amount = int(row["expected_amount_idr"])
+        visible_amount = int(row["visible_amount_idr"])
+        assert visible_amount == (
+            expected_amount + 1_000_000
+            if row["variant"] == "edited_amount"
+            else expected_amount
+        )
         image_path = output / row["path"]
         assert image_path.is_file()
         with Image.open(image_path) as image:
@@ -43,6 +52,7 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
 
     assert all(len(splits) == 1 for splits in source_splits.values())
     assert len(source_splits) == 3
+    assert all(len(variants) == 10 for variants in source_variants.values())
     assert summary["variants_per_source_receipt"] == 10
     assert (output / "manifest.jsonl").is_file()
     assert (output / "DATASET_CARD.json").is_file()
