@@ -505,11 +505,13 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
     layout_by_index: dict[int, str] = {}
     layout_names = tuple(LAYOUTS)
     cursor = 0
-    for split in split_names:
+    for split_position, split in enumerate(split_names):
         split_indices = source_indices[cursor:cursor + per_split]
-        for index in split_indices:
+        for position, index in enumerate(split_indices):
             split_by_index[index] = split
-            layout_by_index[index] = layout_names[(index - 1) % len(layout_names)]
+            layout_by_index[index] = layout_names[
+                (position + split_position) % len(layout_names)
+            ]
         cursor += per_split
 
     rows: list[dict[str, Any]] = []
