@@ -16,6 +16,7 @@ analyzer = Analyzer.create()
 async def lifespan(_: FastAPI):
     yield
     analyzer.seen_hashes.clear()
+    analyzer.seen_phashes.clear()
 
 
 app = FastAPI(
