@@ -1,0 +1,77 @@
+name: Benchmark synthetic OCR
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/benchmark-synthetic-ocr.yml"
+      - "app/analyzer.py"
+      - "scripts/build_synthetic_dataset.py"
+      - "scripts/evaluate_ocr.py"
+  workflow_dispatch:
+    inputs:
+      split:
+        description: Dataset split to evaluate
+        required: true
+        type: choice
+        options:
+          - test
+          - validation
+          - train
+          - all
+        default: test
+      per_split:
+        description: Source receipts per split (1–100)
+        required: true
+        type: number
+        default: 10
+      seed:
+        description: Deterministic dataset seed
+        required: true
+        type: number
+        default: 20261127
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install Tesseract and language data
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            tesseract-ocr tesseract-ocr-ind tesseract-ocr-eng
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Generate deterministic synthetic dataset
+        env:
+          PER_SPLIT: ${{ inputs.per_split || 10 }}
+          DATASET_SEED: ${{ inputs.seed || 20261127 }}
+        run: |
+          python scripts/build_synthetic_dataset.py \
+            --output data/synthetic \
+            --per-split "$PER_SPLIT" \
+            --seed "$DATASET_SEED"
+      - name: Evaluate OCR on selected split
+        env:
+          DATASET_SPLIT: ${{ inputs.split || 'test' }}
+        run: |
+          python scripts/evaluate_ocr.py \
+            --manifest data/synthetic/manifest.csv \
+            --split "$DATASET_SPLIT" \
+            --output-dir data/ocr-benchmark
+      - name: Upload OCR benchmark report
+        uses: actions/upload-artifact@v6
+        with:
+          name: buktiscope-synthetic-ocr-${{ github.run_number }}
+          path: data/ocr-benchmark/
+          if-no-files-found: error
+          retention-days: 14
