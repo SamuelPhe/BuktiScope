@@ -106,6 +106,13 @@ function renderResult(data) {
     ['Metadata', data.image.metadata.metadata_present ? data.image.metadata.exif_fields_count + ' field EXIF' : 'Tidak ditemukan'],
     ['SHA-256', data.image.sha256.slice(0, 18) + '…']
   ];
+  if (data.image.similar_in_session) {
+    props.push([
+      'Kemiripan dalam sesi',
+      'Jarak ' + data.image.similar_in_session.hamming_distance + ' bit · ' +
+      data.image.similar_in_session.previous_sha256_prefix + '…'
+    ]);
+  }
   document.querySelector('#file-properties').innerHTML = props.map(([label, value]) =>
     '<div class="property"><span>' + escapeHtml(label) + '</span><b>' + escapeHtml(String(value)) + '</b></div>'
   ).join('');

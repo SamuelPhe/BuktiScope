@@ -15,6 +15,8 @@ from typing import Any
 import numpy as np
 from PIL import ExifTags, Image, ImageChops, ImageEnhance, ImageOps, UnidentifiedImageError
 
+from .perceptual import hamming_distance, perceptual_hash
+
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_PIXELS = 20_000_000
 ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
@@ -38,10 +40,11 @@ class Analyzer:
     """Analyze transfer-evidence images without retaining their contents."""
 
     seen_hashes: set[str]
+    seen_phashes: dict[str, str]
 
     @classmethod
     def create(cls) -> "Analyzer":
-        return cls(seen_hashes=set())
+        return cls(seen_hashes=set(), seen_phashes={})
 
     def analyze(
         self,
@@ -75,6 +78,7 @@ class Analyzer:
 
         findings: list[dict[str, Any]] = []
         score = 0
+        image_phash = perceptual_hash(image)
         extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
         format_extensions = {"JPEG": {"jpg", "jpeg"}, "PNG": {"png"}, "WEBP": {"webp"}}
         if extension and extension not in format_extensions[image_format]:
@@ -100,14 +104,38 @@ class Analyzer:
                 ))
 
         duplicate = sha256 in self.seen_hashes
+        nearest_match: dict[str, Any] | None = None
+        if image_phash and not duplicate:
+            candidates = (
+                (hamming_distance(image_phash, previous_hash), previous_sha)
+                for previous_sha, previous_hash in self.seen_phashes.items()
+                if previous_sha != sha256
+            )
+            nearest_distance, nearest_sha = min(candidates, default=(65, ""))
+            if nearest_distance <= 6:
+                nearest_match = {
+                    "hamming_distance": nearest_distance,
+                    "previous_sha256_prefix": nearest_sha[:16],
+                }
+
         self.seen_hashes.add(sha256)
+        if image_phash:
+            self.seen_phashes[sha256] = image_phash
         if len(self.seen_hashes) > 5_000:
             self.seen_hashes = {sha256}
+            self.seen_phashes = {sha256: image_phash} if image_phash else {}
+
         if duplicate:
             score += 35
             findings.append(_finding(
                 "duplicate_upload", "medium", "File yang identik pernah diperiksa dalam sesi ini",
                 "Sidik jari SHA-256 cocok dengan file yang sudah diperiksa sejak aplikasi berjalan. Ini dapat berarti pengiriman ulang yang sah; bukan bukti penipuan.", 35,
+            ))
+        elif nearest_match:
+            findings.append(_finding(
+                "near_duplicate_upload", "info", "Gambar sangat mirip dengan file lain dalam sesi ini",
+                f"Jarak hash perceptual {nearest_match['hamming_distance']} bit dari file {nearest_match['previous_sha256_prefix']}…. Perubahan ukuran atau kompresi dapat menghasilkan kecocokan; ini bukan bukti penggunaan ulang yang mencurigakan.",
+                0,
             ))
 
         ocr = _run_ocr(image)
@@ -195,6 +223,8 @@ class Analyzer:
                 "size_bytes": len(raw),
                 "sha256": sha256,
                 "duplicate_in_session": duplicate,
+                "perceptual_hash": image_phash,
+                "similar_in_session": nearest_match,
                 "metadata": metadata,
             },
             "ocr": {

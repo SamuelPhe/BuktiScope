@@ -20,7 +20,7 @@ This project does not claim to be the first tool of its kind. Its intended contr
 - Extracts visible `Rp`/`IDR` amounts from OCR output.
 - Optionally compares OCR text with an expected order amount and recipient name. This is text matching, not account verification.
 - Inspects available EXIF/basic metadata and treats editing-software metadata as a weak signal only.
-- Identifies byte-identical images already analyzed during the current process using SHA-256. It does not retain image contents.
+- Identifies byte-identical images already analyzed during the current process using SHA-256, and can flag visually similar exports using a perceptual hash (pHash). Similarity is informational and does not add risk points. It does not retain image contents.
 - Displays an ELA heatmap for JPEG files as a visual aid. ELA does not add points to the risk score.
 - Shows a transparent, rule-based risk score and a reason for each scored signal.
 - Processes request image bytes in memory; it does not save uploaded evidence to an upload directory or database.
@@ -110,7 +110,7 @@ This creates `demo-data/synthetic-clean.jpg` and `demo-data/synthetic-edited.jpg
 | Expected amount not found in sufficiently confident OCR output | +25 | OCR can misread numbers; verify manually. |
 | Expected recipient text not found by OCR | +10 | OCR can miss or misread the recipient's name. |
 
-Risk bands: `0–19` low image-screening risk, `20–49` review, and `50–100` high image-screening risk. These are heuristic labels, not calibrated probabilities. Missing metadata, absent ELA patterns, or successful OCR matching do not make an image authentic.
+Visually similar exports are reported as an informational finding using a 64-bit pHash with a Hamming-distance threshold of 6; they do not affect the score. Similar-looking bank templates can produce false matches, so treat this as a review hint only. Risk bands: `0–19` low image-screening risk, `20–49` review, and `50–100` high image-screening risk. These are heuristic labels, not calibrated probabilities. Missing metadata, absent ELA patterns, or successful OCR matching do not make an image authentic.
 
 ## API
 
@@ -143,6 +143,7 @@ The request body is streamed with a 10 MB limit to avoid multipart temporary-fil
 - [x] Local upload and file validation.
 - [x] Indonesian/English OCR integration when installed locally.
 - [x] EXIF metadata review and JPEG ELA visualization.
+- [x] Exact and perceptual near-duplicate screening within the current process session.
 - [x] Order amount/recipient text comparison.
 - [x] Explainable scoring, API, tests, and synthetic example generator.
 - [ ] Curated, consented, de-identified evaluation dataset with documented provenance.

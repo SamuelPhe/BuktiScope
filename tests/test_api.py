@@ -23,6 +23,7 @@ def test_health_endpoint():
 
 def test_analyze_endpoint_returns_risk_report():
     analyzer.seen_hashes.clear()
+    analyzer.seen_phashes.clear()
     with TestClient(app) as client:
         response = client.post(
             "/api/analyze",

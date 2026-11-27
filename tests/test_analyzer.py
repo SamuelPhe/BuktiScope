@@ -7,6 +7,7 @@ from PIL import Image, PngImagePlugin
 
 from app import analyzer as analyzer_module
 from app.analyzer import AnalysisError, Analyzer, _extract_amounts, _parse_idr_number
+from app.perceptual import hamming_distance, perceptual_hash
 
 
 def png_bytes(text: str | None = None) -> bytes:
@@ -95,3 +96,50 @@ def test_metadata_is_reported_without_assuming_authenticity():
 def test_upload_limit_is_enforced():
     with pytest.raises(AnalysisError, match="10 MB"):
         Analyzer.create().analyze(b"x" * (10 * 1024 * 1024 + 1), "large.png")
+
+
+def jpeg_variant(raw: bytes, quality: int, size: tuple[int, int] | None = None) -> bytes:
+    image = Image.open(io.BytesIO(raw)).convert("RGB")
+    if size:
+        image = image.resize(size, Image.Resampling.LANCZOS)
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", quality=quality, optimize=True)
+    return buffer.getvalue()
+
+
+def test_perceptual_hash_survives_recompression_and_resize():
+    raw = png_bytes("TRANSFER BERHASIL Rp 250.000")
+    first = jpeg_variant(raw, quality=95)
+    second = jpeg_variant(raw, quality=55, size=(640, 853))
+    first_hash = perceptual_hash(Image.open(io.BytesIO(first)))
+    second_hash = perceptual_hash(Image.open(io.BytesIO(second)))
+
+    assert first_hash is not None
+    assert second_hash is not None
+    assert hamming_distance(first_hash, second_hash) <= 6
+
+
+def test_near_duplicate_is_informational_and_does_not_increase_risk(monkeypatch):
+    monkeypatch.setattr(analyzer_module, "_run_ocr", lambda image: {
+        "available": False, "language": None, "text": "", "confidence": None,
+    })
+    instance = Analyzer.create()
+    raw = png_bytes("TRANSFER BERHASIL Rp 250.000")
+    first = jpeg_variant(raw, quality=95)
+    second = jpeg_variant(raw, quality=55, size=(640, 853))
+
+    first_result = instance.analyze(first, "first.jpg")
+    second_result = instance.analyze(second, "second.jpg")
+
+    assert first_result["image"]["duplicate_in_session"] is False
+    assert second_result["image"]["duplicate_in_session"] is False
+    assert second_result["image"]["similar_in_session"] is not None
+    assert second_result["risk_score"] == 0
+    finding = next(item for item in second_result["findings"] if item["code"] == "near_duplicate_upload")
+    assert finding["points"] == 0
+    assert finding["severity"] == "info"
+
+
+def test_uniform_images_skip_perceptual_hash():
+    image = Image.new("RGB", (64, 64), "white")
+    assert perceptual_hash(image) is None
