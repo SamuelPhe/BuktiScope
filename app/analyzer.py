@@ -140,6 +140,8 @@ class Analyzer:
 
         ocr = _run_ocr(image)
         extracted_amounts = _extract_amounts(ocr["text"])
+        amount_regions = _locate_amount_regions(ocr["text"], ocr.get("words", []))
+        ocr_overlay = _ocr_overlay(image, amount_regions)
         normalized_expected = _normalize_recipient(expected_recipient)
         recipient_match: bool | None = None
         if normalized_expected:
@@ -234,6 +236,8 @@ class Analyzer:
                 "confidence": ocr["confidence"],
                 "transfer_keywords": transfer_term_hits,
                 "amounts_idr": extracted_amounts,
+                "amount_regions": amount_regions,
+                "overlay_data_url": ocr_overlay,
             },
             "comparison": {
                 "expected_amount_idr": expected_amount,
@@ -301,12 +305,14 @@ def _run_ocr(image: Image.Image) -> dict[str, Any]:
     binary = _tesseract_binary()
     languages = _tesseract_languages()
     if not binary or not languages:
-        return {"available": False, "language": None, "text": "", "confidence": None}
+        return {"available": False, "language": None, "text": "", "confidence": None, "words": []}
     selected = "+".join(lang for lang in ("ind", "eng") if lang in languages) or ("eng" if "eng" in languages else None)
     if not selected:
-        return {"available": False, "language": None, "text": "", "confidence": None}
+        return {"available": False, "language": None, "text": "", "confidence": None, "words": []}
     prepared = ImageOps.grayscale(image)
     prepared.thumbnail((1800, 1800))
+    scale_x = image.width / prepared.width
+    scale_y = image.height / prepared.height
     image_buffer = io.BytesIO()
     prepared.save(image_buffer, format="PNG", optimize=True)
     try:
@@ -318,6 +324,7 @@ def _run_ocr(image: Image.Image) -> dict[str, Any]:
         rows = csv.DictReader(io.StringIO(decoded), delimiter="\t")
         pieces: list[str] = []
         confidences: list[float] = []
+        words: list[dict[str, Any]] = []
         for row in rows:
             word = (row.get("text") or "").strip()
             try:
@@ -326,6 +333,22 @@ def _run_ocr(image: Image.Image) -> dict[str, Any]:
                 confidence = -1
             if word:
                 pieces.append(word)
+                try:
+                    left = max(0, int(float(row.get("left", 0)) * scale_x))
+                    top = max(0, int(float(row.get("top", 0)) * scale_y))
+                    box_width = max(0, int(float(row.get("width", 0)) * scale_x))
+                    box_height = max(0, int(float(row.get("height", 0)) * scale_y))
+                    if box_width and box_height:
+                        words.append({
+                            "text": word,
+                            "confidence": round(confidence, 1) if confidence >= 0 else None,
+                            "x": left,
+                            "y": top,
+                            "width": box_width,
+                            "height": box_height,
+                        })
+                except (TypeError, ValueError, OverflowError):
+                    pass
             if confidence >= 0:
                 confidences.append(confidence)
         return {
@@ -333,9 +356,10 @@ def _run_ocr(image: Image.Image) -> dict[str, Any]:
             "language": selected,
             "text": " ".join(pieces),
             "confidence": round(float(np.mean(confidences)), 1) if confidences else None,
+            "words": words[:500],
         }
     except Exception:
-        return {"available": True, "language": selected, "text": "", "confidence": None}
+        return {"available": True, "language": selected, "text": "", "confidence": None, "words": []}
 
 
 def _parse_idr_number(raw: str) -> int | None:
@@ -365,6 +389,76 @@ def _extract_amounts(text: str) -> list[int]:
             results.append(amount)
     return results[:20]
 
+
+
+
+def _locate_amount_regions(text: str, words: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Map IDR amount matches to OCR word boxes in original-image pixels."""
+    if not text or not words:
+        return []
+
+    spans: list[tuple[int, int, dict[str, Any]]] = []
+    cursor = 0
+    for word in words:
+        token = str(word.get("text") or "").strip()
+        if not token:
+            continue
+        start = text.find(token, cursor)
+        if start < 0:
+            continue
+        end = start + len(token)
+        spans.append((start, end, word))
+        cursor = end
+
+    regions: list[dict[str, Any]] = []
+    amount_pattern = re.compile(
+        r"(?:\\bRp\\.?|\\bIDR\\b)\\s*[:.]?\\s*([0-9][0-9.,]*)",
+        flags=re.IGNORECASE,
+    )
+    for match in amount_pattern.finditer(text):
+        matching_words = [
+            word for start, end, word in spans
+            if start < match.end() and end > match.start()
+        ]
+        if not matching_words:
+            continue
+        x0 = min(int(word["x"]) for word in matching_words)
+        y0 = min(int(word["y"]) for word in matching_words)
+        x1 = max(int(word["x"]) + int(word["width"]) for word in matching_words)
+        y1 = max(int(word["y"]) + int(word["height"]) for word in matching_words)
+        amount = _parse_idr_number(match.group(1))
+        if amount is None:
+            continue
+        regions.append({
+            "amount_idr": amount,
+            "text": match.group(0),
+            "x": x0,
+            "y": y0,
+            "width": max(1, x1 - x0),
+            "height": max(1, y1 - y0),
+        })
+    return regions[:20]
+
+
+def _ocr_overlay(image: Image.Image, regions: list[dict[str, Any]]) -> str | None:
+    """Build a bounded preview with OCR-detected amount boxes."""
+    if not regions:
+        return None
+    preview = image.copy()
+    preview.thumbnail((900, 900))
+    scale_x = preview.width / image.width
+    scale_y = preview.height / image.height
+    draw = ImageDraw.Draw(preview)
+    for index, region in enumerate(regions, start=1):
+        x0 = int(region["x"] * scale_x)
+        y0 = int(region["y"] * scale_y)
+        x1 = int((region["x"] + region["width"]) * scale_x)
+        y1 = int((region["y"] + region["height"]) * scale_y)
+        draw.rectangle((x0, y0, x1, y1), outline="#13a77b", width=3)
+        draw.text((x0 + 3, max(0, y0 - 15)), str(index), fill="#13a77b")
+    output = io.BytesIO()
+    preview.save(output, format="JPEG", quality=85, optimize=True)
+    return "data:image/jpeg;base64," + base64.b64encode(output.getvalue()).decode("ascii")
 
 def _normalize_recipient(value: str | None) -> str:
     return re.sub(r"[^a-z0-9]", "", (value or "").lower())
