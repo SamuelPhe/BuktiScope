@@ -1,0 +1,10 @@
+[project]
+name = "buktiscope"
+version = "0.1.0"
+description = "Local-first, explainable screening for Indonesian transfer-evidence images"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
