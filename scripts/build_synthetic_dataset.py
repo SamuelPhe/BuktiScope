@@ -497,17 +497,26 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
     source_indices = list(range(1, per_split * len(split_names) + 1))
     rng.shuffle(source_indices)
     split_by_index: dict[int, str] = {}
+    layout_by_index: dict[int, str] = {}
+    layout_names = tuple(LAYOUTS)
     cursor = 0
     for split in split_names:
-        for index in source_indices[cursor:cursor + per_split]:
+        split_indices = source_indices[cursor:cursor + per_split]
+        for position, index in enumerate(split_indices):
             split_by_index[index] = split
+            layout_by_index[index] = layout_names[position % len(layout_names)]
         cursor += per_split
 
     rows: list[dict[str, Any]] = []
     for index in sorted(source_indices):
         split = split_by_index[index]
         source_id = f"receipt_{index:05d}"
-        base, metadata = make_receipt(index, rng)
+        layout_id = layout_by_index[index]
+        base, metadata = make_receipt(index, rng, layout_id)
+        field_boxes = {
+            name: tuple(box)
+            for name, box in metadata["boxes"].items()
+        }
         variants: list[
             tuple[str, Image.Image, str, str, list[int] | None, int, str, dict[str, Any]]
         ] = [
@@ -520,21 +529,21 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
         ]
 
         amount_value = metadata["amount"] + 1_000_000
-        edited_amount, amount_box = replace_field(base, "amount", money(amount_value))
+        edited_amount, amount_box = replace_field(base, "amount", money(amount_value), field_boxes)
         variants.append((
             "edited_amount", edited_amount, "synthetic_edited",
             "amount_replacement", amount_box, amount_value, "none", {},
         ))
 
         recipient_value = f"OTHER PAYEE {index:03d}"
-        edited_recipient, recipient_box = replace_field(base, "recipient", recipient_value)
+        edited_recipient, recipient_box = replace_field(base, "recipient", recipient_value, field_boxes)
         variants.append((
             "edited_recipient", edited_recipient, "synthetic_edited",
             "recipient_replacement", recipient_box, metadata["amount"], "none", {},
         ))
 
         date_value = "12 NOVEMBER 2026"
-        edited_date, date_box = replace_field(base, "date", date_value)
+        edited_date, date_box = replace_field(base, "date", date_value, field_boxes)
         variants.append((
             "edited_date", edited_date, "synthetic_edited",
             "date_replacement", date_box, metadata["amount"], "none", {},
@@ -615,6 +624,7 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
                 "path": relative_path.as_posix(),
                 "class_label": class_label,
                 "variant": variant,
+                "layout_id": layout_id,
                 "manipulation": manipulation,
                 "quality_transform": quality_transform,
                 "transform_parameters_json": json.dumps(transform_parameters, sort_keys=True),
@@ -660,11 +670,25 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
             for variant in sorted({row["variant"] for row in rows})
         },
         "variants_per_source_receipt": len(variants),
+        "layout_counts": {
+            layout: sum(1 for row in rows if row["layout_id"] == layout)
+            for layout in LAYOUTS
+        },
+        "layout_counts_by_split": {
+            split: {
+                layout: sum(
+                    1 for row in rows
+                    if row["split"] == split and row["layout_id"] == layout
+                )
+                for layout in LAYOUTS
+            }
+            for split in split_names
+        },
         "seed": seed,
         "synthetic_only": True,
         "limitations": [
             "This is a controlled synthetic dataset, not real bank evidence.",
-            "The synthetic layouts do not represent or certify any bank.",
+            "The three fictional layout families do not represent or certify any bank.",
             "The edited variants are simple field replacements and do not cover sophisticated forgeries.",
             "Quality variants are controlled transformations, not complete simulations of real cameras, screens, or messaging apps.",
             "Screen glare, moiré, shadows, and camera noise are synthetic overlays, not complete physical camera/screen simulations.",
