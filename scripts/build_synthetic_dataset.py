@@ -45,7 +45,7 @@ LAYOUTS = {
     "itemized_slip": {
         "fields": {
             "amount": (115, 630, 885, 765),
-            "recipient": (115, 865, 885, 965),
+            "recipient": (115, 835, 885, 935),
             "date": (115, 985, 885, 1085),
         },
         "accent": "#5d5943",
