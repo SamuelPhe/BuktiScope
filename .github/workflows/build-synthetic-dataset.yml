@@ -1,6 +1,12 @@
 name: Build synthetic dataset
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/build-synthetic-dataset.yml"
+      - "scripts/build_synthetic_dataset.py"
   workflow_dispatch:
     inputs:
       per_split:
@@ -29,8 +35,8 @@ jobs:
         run: python -m pip install "Pillow>=10.4,<13.0"
       - name: Generate synthetic dataset
         env:
-          PER_SPLIT: ${{ inputs.per_split }}
-          DATASET_SEED: ${{ inputs.seed }}
+          PER_SPLIT: ${{ inputs.per_split || 10 }}
+          DATASET_SEED: ${{ inputs.seed || 20261127 }}
         run: >-
           python scripts/build_synthetic_dataset.py
           --output data/synthetic
