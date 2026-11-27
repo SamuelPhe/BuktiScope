@@ -64,7 +64,7 @@ jobs:
         env:
           DATASET_SPLIT: ${{ inputs.split || 'test' }}
         run: |
-          python scripts/evaluate_ocr.py \
+          python -m scripts.evaluate_ocr \
             --manifest data/synthetic/manifest.csv \
             --split "$DATASET_SPLIT" \
             --output-dir data/ocr-benchmark
