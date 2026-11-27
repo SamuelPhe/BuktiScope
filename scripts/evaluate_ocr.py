@@ -15,7 +15,7 @@ from app.analyzer import _extract_amounts, _run_ocr_with_fallback, _tesseract_bi
 
 SPLITS = ("train", "validation", "test")
 REQUIRED_COLUMNS = {
-    "sample_id", "split", "path", "variant", "visible_amount_idr", "synthetic_only",
+    "sample_id", "split", "path", "variant", "layout_id", "visible_amount_idr", "synthetic_only",
 }
 LIMITATIONS = [
     "This benchmark measures OCR reading on controlled synthetic images only.",
@@ -55,8 +55,9 @@ def load_manifest(manifest_path: Path, split: str = "test") -> list[dict[str, An
 
             sample_id = str(row.get("sample_id", "")).strip()
             variant = str(row.get("variant", "")).strip()
+            layout_id = str(row.get("layout_id", "")).strip()
             relative_value = str(row.get("path", "")).strip()
-            if not sample_id or not variant or not relative_value:
+            if not sample_id or not variant or not layout_id or not relative_value:
                 raise ValueError(f"Manifest row {line_number} is missing sample metadata")
             if sample_id in seen_ids:
                 raise ValueError(f"Duplicate sample_id in manifest: {sample_id}")
@@ -84,6 +85,7 @@ def load_manifest(manifest_path: Path, split: str = "test") -> list[dict[str, An
                 "path": relative_path.as_posix(),
                 "image_path": image_path,
                 "variant": variant,
+                "layout_id": layout_id,
                 "visible_amount_idr": visible_amount,
             })
 
@@ -170,6 +172,7 @@ def evaluate_manifest(
             "sample_id": sample["sample_id"],
             "split": sample["split"],
             "variant": sample["variant"],
+            "layout_id": sample["layout_id"],
             "expected_visible_amount_idr": expected,
             "extracted_amounts_idr": extracted,
             "amount_detected": bool(extracted),
@@ -181,8 +184,10 @@ def evaluate_manifest(
         })
 
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    by_layout: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in records:
         grouped[record["variant"]].append(record)
+        by_layout[record["layout_id"]].append(record)
 
     report = {
         "benchmark": "BuktiScope synthetic OCR amount-reading baseline",
@@ -198,6 +203,10 @@ def evaluate_manifest(
             variant: summarize(grouped[variant])
             for variant in sorted(grouped)
         },
+        "by_layout": {
+            layout: summarize(by_layout[layout])
+            for layout in sorted(by_layout)
+        },
         "limitations": LIMITATIONS,
     }
 
@@ -207,7 +216,7 @@ def evaluate_manifest(
         encoding="utf-8",
     )
     sample_fields = [
-        "sample_id", "split", "variant", "expected_visible_amount_idr",
+        "sample_id", "split", "variant", "layout_id", "expected_visible_amount_idr",
         "extracted_amounts_idr", "amount_detected", "exact_amount_match",
         "unexpected_amount_count", "ocr_available", "ocr_strategy", "confidence",
     ]
