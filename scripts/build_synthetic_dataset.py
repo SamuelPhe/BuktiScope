@@ -24,6 +24,36 @@ FIELDS = {
     "date": (125, 945, 875, 1045),
 }
 
+# All templates are fictional and intentionally bank-neutral.
+LAYOUTS = {
+    "classic_card": {
+        "fields": FIELDS,
+        "accent": "#243b5a",
+        "card_radius": 24,
+        "style": "classic",
+    },
+    "compact_mobile": {
+        "fields": {
+            "amount": (130, 520, 870, 650),
+            "recipient": (130, 780, 870, 880),
+            "date": (130, 935, 870, 1035),
+        },
+        "accent": "#176b69",
+        "card_radius": 38,
+        "style": "compact",
+    },
+    "itemized_slip": {
+        "fields": {
+            "amount": (115, 630, 885, 765),
+            "recipient": (115, 865, 885, 965),
+            "date": (115, 1025, 885, 1125),
+        },
+        "accent": "#5d5943",
+        "card_radius": 8,
+        "style": "slip",
+    },
+}
+
 
 def load_font(size: int, bold: bool = False):
     candidates = [
@@ -46,9 +76,13 @@ def save_jpeg(image: Image.Image, path: Path, quality: int = 94) -> None:
     image.save(path, format="JPEG", quality=quality, optimize=True)
 
 
-def make_receipt(index: int, rng: random.Random) -> tuple[Image.Image, dict[str, Any]]:
+def make_receipt(
+    index: int, rng: random.Random, layout_id: str
+) -> tuple[Image.Image, dict[str, Any]]:
+    layout = LAYOUTS[layout_id]
+    fields = layout["fields"]
     background = rng.choice(("#f5f7fb", "#f3f6f8", "#f7f6f2"))
-    accent = rng.choice(("#243b5a", "#334968", "#263d4f"))
+    accent = layout["accent"]
     amount = 250_000 + index * 12_500
     recipient = f"SAMPLE MERCHANT {index:03d}"
     date = "27 NOVEMBER 2026"
@@ -56,40 +90,71 @@ def make_receipt(index: int, rng: random.Random) -> tuple[Image.Image, dict[str,
 
     image = Image.new("RGB", (IMAGE_WIDTH, IMAGE_HEIGHT), background)
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle(
-        (65, 45, 935, 1255),
-        radius=24,
-        fill="white",
-        outline="#dce3ec",
-        width=3,
-    )
-    draw.rounded_rectangle(
-        (65, 45, 935, 235),
-        radius=24,
-        fill=accent,
-    )
-    draw.rectangle((65, 185, 935, 235), fill=accent)
-    draw.text((120, 95), "BUKTISCOPE SYNTHETIC RECEIPT", font=load_font(31, True), fill="white")
-    draw.text((120, 155), "TRAINING FIXTURE - NOT A BANK", font=load_font(18, True), fill="#9fe3d9")
-    draw.text((125, 295), "TRANSFER SUMMARY", font=load_font(34, True), fill="#1b2c46")
+
+    if layout["style"] == "classic":
+        draw.rounded_rectangle(
+            (65, 45, 935, 1255), radius=layout["card_radius"],
+            fill="white", outline="#dce3ec", width=3,
+        )
+        draw.rounded_rectangle((65, 45, 935, 235), radius=24, fill=accent)
+        draw.rectangle((65, 185, 935, 235), fill=accent)
+        draw.text((120, 95), "BUKTISCOPE SYNTHETIC RECEIPT", font=load_font(31, True), fill="white")
+        draw.text((120, 155), "TRAINING FIXTURE - NOT A BANK", font=load_font(18, True), fill="#9fe3d9")
+        summary_title = "TRANSFER SUMMARY"
+    elif layout["style"] == "compact":
+        draw.rounded_rectangle(
+            (75, 35, 925, 1265), radius=layout["card_radius"],
+            fill="white", outline="#d5e2e4", width=4,
+        )
+        draw.rounded_rectangle((75, 35, 925, 225), radius=layout["card_radius"], fill=accent)
+        draw.rectangle((75, 175, 925, 225), fill=accent)
+        draw.text((125, 82), "PAYMENT RECEIPT", font=load_font(36, True), fill="white")
+        draw.text((125, 145), "DIGITAL TRANSFER - SAMPLE ONLY", font=load_font(19, True), fill="#c8f2ec")
+        summary_title = "TRANSACTION DETAILS"
+    else:
+        draw.rectangle((65, 45, 935, 1255), fill="white", outline="#d4d2c8", width=4)
+        draw.rectangle((65, 45, 105, 1255), fill=accent)
+        draw.rectangle((105, 45, 935, 205), fill="#f0efe8")
+        draw.text((145, 82), "TRANSFER RECEIPT", font=load_font(35, True), fill=accent)
+        draw.text((145, 140), "FICTIONAL ITEMIZED SLIP", font=load_font(19, True), fill="#777365")
+        summary_title = "PAYMENT INFORMATION"
+
+    draw.text((125, 295), summary_title, font=load_font(32, True), fill="#1b2c46")
     draw.text((125, 365), "Status contoh", font=load_font(20), fill="#8290a4")
     draw.text((125, 405), "SUCCESS (SIMULATION)", font=load_font(23, True), fill="#18866c")
-    draw.line((125, 475, 875, 475), fill="#e3e9f0", width=2)
 
-    draw.text((140, 525), "TOTAL TRANSFER", font=load_font(18, True), fill="#8996a8")
-    amount_box = FIELDS["amount"]
+    amount_box = fields["amount"]
+    recipient_box = fields["recipient"]
+    date_box = fields["date"]
+    divider_y = amount_box[1] - 90
+    draw.line((125, divider_y, 875, divider_y), fill="#e3e9f0", width=2)
+
+    draw.text((amount_box[0] + 15, amount_box[1] - 40), "TOTAL TRANSFER", font=load_font(18, True), fill="#8996a8")
     draw.rounded_rectangle(amount_box, radius=12, fill="#f1f4f8")
-    draw.text((155, 600), money(amount), font=load_font(52, True), fill="#172943")
+    draw.text(
+        (amount_box[0] + 30, amount_box[1] + 35),
+        money(amount),
+        font=load_font(52, True),
+        fill="#172943",
+    )
 
-    draw.text((125, 760), "RECIPIENT", font=load_font(18, True), fill="#8996a8")
-    recipient_box = FIELDS["recipient"]
+    draw.text((recipient_box[0], recipient_box[1] - 40), "RECIPIENT", font=load_font(18, True), fill="#8996a8")
     draw.rounded_rectangle(recipient_box, radius=12, fill="#f8f9fb")
-    draw.text((155, 830), recipient, font=load_font(29, True), fill="#344761")
+    draw.text(
+        (recipient_box[0] + 30, recipient_box[1] + 30),
+        recipient,
+        font=load_font(29, True),
+        fill="#344761",
+    )
 
-    draw.text((125, 905), "TRANSFER DATE", font=load_font(18, True), fill="#8996a8")
-    date_box = FIELDS["date"]
+    draw.text((date_box[0], date_box[1] - 40), "TRANSFER DATE", font=load_font(18, True), fill="#8996a8")
     draw.rounded_rectangle(date_box, radius=12, fill="#f8f9fb")
-    draw.text((155, 975), date, font=load_font(27, True), fill="#344761")
+    draw.text(
+        (date_box[0] + 30, date_box[1] + 28),
+        date,
+        font=load_font(27, True),
+        fill="#344761",
+    )
 
     draw.text((125, 1090), f"REFERENCE: {reference}", font=load_font(19), fill="#65748a")
     draw.rounded_rectangle((125, 1150, 875, 1220), radius=10, fill="#fff4d9", outline="#ead8ac", width=2)
@@ -100,23 +165,20 @@ def make_receipt(index: int, rng: random.Random) -> tuple[Image.Image, dict[str,
         "recipient": recipient,
         "date": date,
         "reference": reference,
-        "boxes": {
-            "amount": list(amount_box),
-            "recipient": list(recipient_box),
-            "date": list(date_box),
-        },
+        "layout_id": layout_id,
+        "boxes": {name: list(box) for name, box in fields.items()},
     }
     return image, metadata
-
 
 def replace_field(
     original: Image.Image,
     field: str,
     replacement: str,
+    field_boxes: dict[str, tuple[int, int, int, int]],
 ) -> tuple[Image.Image, list[int]]:
     image = original.copy()
     draw = ImageDraw.Draw(image)
-    box = FIELDS[field]
+    box = field_boxes[field]
     x0, y0, x1, y1 = box
     draw.rounded_rectangle(box, radius=12, fill="#f1f4f8" if field == "amount" else "#f8f9fb")
     if field == "amount":
