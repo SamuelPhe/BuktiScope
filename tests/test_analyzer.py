@@ -237,3 +237,28 @@ def test_analyzer_returns_ocr_overlay_for_detected_amount(monkeypatch):
 
     assert result["ocr"]["amount_regions"][0]["amount_idr"] == 250000
     assert result["ocr"]["overlay_data_url"].startswith("data:image/jpeg;base64,")
+
+
+def test_tesseract_word_coordinates_scale_back_to_original_image(monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(analyzer_module, "_tesseract_binary", lambda: "tesseract")
+    monkeypatch.setattr(analyzer_module, "_tesseract_languages", lambda: ("eng",))
+    tsv = (
+        "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n"
+        "5\t1\t1\t1\t1\t1\t30\t20\t100\t25\t91.0\tRp\n"
+        "5\t1\t1\t1\t1\t2\t140\t20\t120\t25\t88.0\t250.000\n"
+    )
+    monkeypatch.setattr(
+        analyzer_module.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=tsv.encode("utf-8")),
+    )
+
+    result = analyzer_module._run_ocr(Image.new("RGB", (2400, 1200), "white"))
+
+    assert result["text"] == "Rp 250.000"
+    assert result["words"][0]["x"] == 40
+    assert result["words"][0]["y"] == 26
+    assert result["words"][0]["width"] == 133
+    assert result["words"][0]["height"] == 33
