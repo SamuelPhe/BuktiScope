@@ -17,7 +17,7 @@ This project does not claim to be the first tool of its kind. Its intended contr
 - Accepts JPG, PNG, and WEBP; checks the decoded image format rather than trusting the filename.
 - Limits image requests to 10 MB and decoded images to 20 megapixels.
 - Reads visible text with Tesseract OCR when installed, preferring Indonesian (`ind`) and English (`eng`) language data.
-- Extracts visible `Rp`/`IDR` amounts from OCR output.
+- Extracts visible `Rp`/`IDR` amounts from OCR output and maps detected amount words to their original-image pixel coordinates when OCR word boxes are available. The UI can show a marked preview; it is only an OCR location hint.
 - Optionally compares OCR text with an expected order amount and recipient name. This is text matching, not account verification.
 - Inspects available EXIF/basic metadata and treats editing-software metadata as a weak signal only.
 - Identifies byte-identical images already analyzed during the current process using SHA-256, and can flag visually similar exports using a perceptual hash (pHash). Similarity is informational and does not add risk points. It does not retain image contents.
@@ -141,7 +141,7 @@ The request body is streamed with a 10 MB limit to avoid multipart temporary-fil
 ## Roadmap
 
 - [x] Local upload and file validation.
-- [x] Indonesian/English OCR integration when installed locally.
+- [x] Indonesian/English OCR integration when installed locally, including amount-region coordinate mapping and a marked preview.
 - [x] EXIF metadata review and JPEG ELA visualization.
 - [x] Exact and perceptual near-duplicate screening within the current process session.
 - [x] Relative JPEG ELA hotspot regions for human review (informational only).
