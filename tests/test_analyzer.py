@@ -7,7 +7,7 @@ import pytest
 from PIL import Image, PngImagePlugin
 
 from app import analyzer as analyzer_module
-from app.analyzer import AnalysisError, Analyzer, _extract_amounts, _parse_idr_number
+from app.analyzer import AnalysisError, Analyzer, _extract_amounts, _parse_idr_number, _run_ocr_with_fallback
 from app.perceptual import hamming_distance, perceptual_hash
 
 
@@ -81,6 +81,113 @@ def test_expected_amount_match_is_not_called_bank_verification(monkeypatch):
     assert result["comparison"]["amount_match"] is True
     assert result["risk_score"] == 0
     assert "bukan bukti" in result["disclaimer"]
+
+
+def test_ocr_fallback_uses_unsharp_only_when_primary_has_no_amount(monkeypatch):
+    source = Image.new("RGB", (320, 420), "white")
+    calls = []
+
+    def fake_ocr(image, psm=6):
+        calls.append((image, psm))
+        if len(calls) == 1:
+            return {
+                "available": True,
+                "language": "ind+eng",
+                "text": "TRANSFER SUCCESS SAMPLE",
+                "confidence": 92.0,
+                "words": [],
+            }
+        return {
+            "available": True,
+            "language": "ind+eng",
+            "text": "TOTAL TRANSFER Rp 250.000",
+            "confidence": 90.0,
+            "words": [],
+        }
+
+    monkeypatch.setattr(analyzer_module, "_run_ocr", fake_ocr)
+    result = _run_ocr_with_fallback(source)
+
+    assert len(calls) == 2
+    assert calls[0] == (source, 6)
+    assert calls[1][0] is not source
+    assert calls[1][1] == 6
+    assert result["ocr_strategy"] == "unsharp_mask_psm6"
+    assert _extract_amounts(result["text"]) == [250000]
+
+
+def test_ocr_fallback_uses_sparse_text_mode_after_unsharp_fails(monkeypatch):
+    source = Image.new("RGB", (320, 420), "white")
+    calls = []
+
+    def fake_ocr(image, psm=6):
+        calls.append(psm)
+        if psm == 11:
+            return {
+                "available": True,
+                "language": "ind+eng",
+                "text": "TOTAL TRANSFER Rp 325.000",
+                "confidence": 91.0,
+                "words": [],
+            }
+        return {
+            "available": True,
+            "language": "ind+eng",
+            "text": "TRANSFER SUCCESS SAMPLE",
+            "confidence": 92.0,
+            "words": [],
+        }
+
+    monkeypatch.setattr(analyzer_module, "_run_ocr", fake_ocr)
+    result = _run_ocr_with_fallback(source)
+
+    assert calls == [6, 6, 11]
+    assert result["ocr_strategy"] == "grayscale_psm11"
+    assert _extract_amounts(result["text"]) == [325000]
+
+
+def test_ocr_fallback_does_not_rerun_when_primary_reads_amount(monkeypatch):
+    source = Image.new("RGB", (320, 420), "white")
+    calls = []
+
+    def fake_ocr(image, psm=6):
+        calls.append(psm)
+        return {
+            "available": True,
+            "language": "ind+eng",
+            "text": "TOTAL TRANSFER Rp 500.000",
+            "confidence": 95.0,
+            "words": [],
+        }
+
+    monkeypatch.setattr(analyzer_module, "_run_ocr", fake_ocr)
+    result = _run_ocr_with_fallback(source)
+
+    assert calls == [6]
+    assert result["ocr_strategy"] == "grayscale_psm6"
+    assert _extract_amounts(result["text"]) == [500000]
+
+
+def test_ocr_fallback_does_not_retry_when_tesseract_is_unavailable(monkeypatch):
+    source = Image.new("RGB", (320, 420), "white")
+    calls = []
+
+    def fake_ocr(image, psm=6):
+        calls.append(psm)
+        return {
+            "available": False,
+            "language": None,
+            "text": "",
+            "confidence": None,
+            "words": [],
+        }
+
+    monkeypatch.setattr(analyzer_module, "_run_ocr", fake_ocr)
+    result = _run_ocr_with_fallback(source)
+
+    assert calls == [6]
+    assert result["available"] is False
+    assert result["ocr_strategy"] == "grayscale_psm6"
 
 
 def test_metadata_is_reported_without_assuming_authenticity():
