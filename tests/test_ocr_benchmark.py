@@ -66,6 +66,7 @@ def test_evaluate_manifest_writes_minimized_reports(tmp_path):
     assert report["metrics"]["exact_visible_amount_matches"] == 1
     assert report["metrics"]["exact_amount_match_rate"] == 1.0
     assert report["by_variant"]["clean"]["amount_read_coverage_rate"] == 1.0
+    assert report["ocr_strategy_counts"] == {"custom": 1}
     assert (output_dir / "summary.json").is_file()
     assert (output_dir / "samples.csv").is_file()
 
@@ -74,6 +75,7 @@ def test_evaluate_manifest_writes_minimized_reports(tmp_path):
     with (output_dir / "samples.csv").open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
     assert rows[0]["extracted_amounts_idr"] == "[250000]"
+    assert rows[0]["ocr_strategy"] == "custom"
 
 
 def test_manifest_rejects_non_synthetic_rows(tmp_path):

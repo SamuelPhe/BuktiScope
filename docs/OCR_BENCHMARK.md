@@ -17,6 +17,12 @@ python -m scripts.evaluate_ocr --manifest data/synthetic/manifest.csv --split te
 
 The default evaluates the held-out `test` split. Use `--split all` only for exploratory checks; do not tune an OCR pipeline against the test split and then present the same result as an independent test.
 
+## OCR fallback strategy
+
+The application first runs the existing grayscale Tesseract pass with page segmentation mode (PSM) 6. Only when that pass does not extract an `Rp`/`IDR` amount, it tries an unsharp-mask PSM 6 pass. If no amount is found, it makes one final grayscale PSM 11 sparse-text pass. The first pass that extracts a Rupiah amount is retained; otherwise the original result is kept. This avoids degrading images that the original OCR pass already reads and limits extra processing to difficult cases.
+
+The API reports the selected method as `ocr_strategy`. Benchmark output includes strategy counts in `summary.json` and a strategy value for each sample in `samples.csv`.
+
 ## Metrics
 
 - **Exact amount match rate:** samples where the expected visible amount appears among OCR-extracted `Rp`/`IDR` amounts, divided by all evaluated samples.
@@ -31,8 +37,8 @@ The report includes aggregate metrics and per-variant breakdowns for all ten fix
 ## Output and privacy
 
 The script writes:
-- `summary.json`: engine details, aggregate metrics, per-variant metrics, and limitations.
-- `samples.csv`: sample identifier, variant, expected visible amount, extracted amount candidates, match flags, and OCR confidence.
+- `summary.json`: engine details, aggregate metrics, per-variant metrics, OCR fallback strategy counts, and limitations.
+- `samples.csv`: sample identifier, variant, expected visible amount, extracted amount candidates, match flags, selected OCR strategy, and OCR confidence.
 
 Raw OCR text and image bytes are not copied into the report. The script accepts only manifest rows explicitly marked `synthetic_only=true`, validates the selected split, and prevents image paths from escaping the dataset directory.
 

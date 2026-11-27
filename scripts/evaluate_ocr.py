@@ -11,7 +11,7 @@ from typing import Any, Callable
 
 from PIL import Image, ImageOps
 
-from app.analyzer import _extract_amounts, _run_ocr, _tesseract_binary, _tesseract_languages
+from app.analyzer import _extract_amounts, _run_ocr_with_fallback, _tesseract_binary, _tesseract_languages
 
 SPLITS = ("train", "validation", "test")
 REQUIRED_COLUMNS = {
@@ -142,7 +142,7 @@ def evaluate_manifest(
 ) -> dict[str, Any]:
     """Run OCR on manifest images and write privacy-minimized aggregate/sample reports."""
     samples = load_manifest(manifest_path, split=split)
-    runner = ocr_runner or _run_ocr
+    runner = ocr_runner or _run_ocr_with_fallback
     records: list[dict[str, Any]] = []
 
     for sample in samples:
@@ -176,6 +176,7 @@ def evaluate_manifest(
             "exact_amount_match": exact_match,
             "unexpected_amount_count": sum(amount != expected for amount in extracted),
             "ocr_available": bool(ocr_result.get("available")),
+            "ocr_strategy": str(ocr_result.get("ocr_strategy") or "custom"),
             "confidence": confidence_value,
         })
 
@@ -189,6 +190,10 @@ def evaluate_manifest(
         "split": split,
         "engine": engine or {"name": "injected test runner"},
         "metrics": summarize(records),
+        "ocr_strategy_counts": {
+            strategy: sum(1 for record in records if record["ocr_strategy"] == strategy)
+            for strategy in sorted({record["ocr_strategy"] for record in records})
+        },
         "by_variant": {
             variant: summarize(grouped[variant])
             for variant in sorted(grouped)
@@ -204,7 +209,7 @@ def evaluate_manifest(
     sample_fields = [
         "sample_id", "split", "variant", "expected_visible_amount_idr",
         "extracted_amounts_idr", "amount_detected", "exact_amount_match",
-        "unexpected_amount_count", "ocr_available", "confidence",
+        "unexpected_amount_count", "ocr_available", "ocr_strategy", "confidence",
     ]
     with (output_dir / "samples.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=sample_fields)

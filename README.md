@@ -17,6 +17,7 @@ This project does not claim to be the first tool of its kind. Its intended contr
 - Accepts JPG, PNG, and WEBP; checks the decoded image format rather than trusting the filename.
 - Limits image requests to 10 MB and decoded images to 20 megapixels.
 - Reads visible text with Tesseract OCR when installed, preferring Indonesian (`ind`) and English (`eng`) language data.
+- When the default OCR pass finds no Rupiah amount, retries with an unsharp-mask pass and then Tesseract sparse-text mode (PSM 11). These fallbacks run only when needed; the selected OCR strategy is reported.
 - Extracts visible `Rp`/`IDR` amounts from OCR output and maps detected amount words to their original-image pixel coordinates when OCR word boxes are available. The UI can show a marked preview; it is only an OCR location hint.
 - Optionally compares OCR text with an expected order amount and recipient name. This is text matching, not account verification.
 - Inspects available EXIF/basic metadata and treats editing-software metadata as a weak signal only.
