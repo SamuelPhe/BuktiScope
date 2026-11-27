@@ -17,7 +17,7 @@ From the repository root:
 python scripts/build_synthetic_dataset.py --output data/synthetic --per-split 10 --seed 20261127
 ```
 
-The default creates 30 source receipts and 300 image files (ten variants per source). The destination must not already contain files; the builder refuses to overwrite non-empty directories. Choose another output path for another run. The supported range is 1–100 source receipts per split.
+The default creates 30 source receipts and 450 image files (15 variants per source). The destination must not already contain files; the builder refuses to overwrite non-empty directories. Choose another output path for another run. The supported range is 1–100 source receipts per split.
 
 ## Variants
 
@@ -30,11 +30,16 @@ The default creates 30 source receipts and 300 image files (ten variants per sou
 | `crop_resize` | `synthetic_unmodified` | Small, deterministic border crop followed by resizing to the source canvas. |
 | `rotate_small` | `synthetic_unmodified` | Small rotation (at most 2.2 degrees) with a neutral fill background. |
 | `perspective_warp` | `synthetic_unmodified` | Mild perspective/keystone warp with an unchanged output canvas. |
+| `screen_glare` | `synthetic_unmodified` | Soft translucent reflection over part of the amount field. |
+| `moire_pattern` | `synthetic_unmodified` | Low-opacity repeating line interference pattern. |
+| `camera_noise` | `synthetic_unmodified` | Low-amplitude grain mixed with a slight warm color cast. |
+| `edge_shadow` | `synthetic_unmodified` | Soft directional shadow along one image edge. |
+| `messenger_export` | `synthetic_unmodified` | Downscale and moderate JPEG recompression followed by rescaling. |
 | `edited_amount` | `synthetic_edited` | Amount field replaced with a different visible amount. |
 | `edited_recipient` | `synthetic_edited` | Recipient field replaced. |
 | `edited_date` | `synthetic_edited` | Date field replaced. |
 
-The modifications are intentionally simple and controlled. The quality variants test common image degradation and geometric changes, but do not simulate complete camera pipelines, screen glare, moiré, shadows, messenger-specific processing, or all real-world editing methods. They may be easy for a model to learn as synthetic artifacts.
+The modifications are intentionally simple and controlled. The newer screen/camera variants use overlays and compression approximations; they do not reproduce physical optics, sensor pipelines, display subpixels, real moiré, complex reflections, or app-specific processing exactly. All transformations may be easy for a model to learn as synthetic artifacts.
 
 ## Split strategy
 
