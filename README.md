@@ -101,7 +101,7 @@ Generate grouped train/validation/test fixtures (default: 450 images):
 python scripts/build_synthetic_dataset.py --output data/synthetic --per-split 10 --seed 20261127
 ```
 
-The builder creates clean and benign-export images, ten additional quality/capture variants (blur, heavy compression, crop/resize, rotation, perspective warp, glare, moiré, camera noise, edge shadow, and messenger-style JPEG export), and simple edited amount/recipient/date variants. Source receipt groups never cross splits. Every fixture says synthetic/no payment occurred; the data card documents limitations. Generated files under `data/synthetic/` are git-ignored. You can also generate and download the dataset from GitHub Actions → Build synthetic dataset. The workflow caps each split at 100 source receipts. See [docs/DATASET.md](docs/DATASET.md).
+The builder creates three fictional receipt layout families, then clean and benign-export images, ten additional quality/capture variants (blur, heavy compression, crop/resize, rotation, perspective warp, glare, moiré, camera noise, edge shadow, and messenger-style JPEG export), and simple edited amount/recipient/date variants. Source receipt groups never cross splits. Every fixture says synthetic/no payment occurred; the data card documents limitations. Generated files under `data/synthetic/` are git-ignored. You can also generate and download the dataset from GitHub Actions → Build synthetic dataset. The workflow caps each split at 100 source receipts. See [docs/DATASET.md](docs/DATASET.md).
 
 ## Evaluate OCR on synthetic data
 
