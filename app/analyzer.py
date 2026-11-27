@@ -367,7 +367,7 @@ def _run_ocr_with_fallback(image: Image.Image) -> dict[str, Any]:
     """Try alternate OCR preparation only when the default pass finds no IDR amount."""
     primary = _run_ocr(image)
     primary["ocr_strategy"] = "grayscale_psm6"
-    if not primary.get("available") or _extract_amounts(primary.get("text", "")):
+    if not primary.get("available") or _extract_amounts(str(primary.get("text") or "")):
         return primary
 
     # Sharpening is a targeted fallback for mild blur; keep the original image
@@ -376,14 +376,14 @@ def _run_ocr_with_fallback(image: Image.Image) -> dict[str, Any]:
         ImageFilter.UnsharpMask(radius=2, percent=250, threshold=2)
     )
     sharpened_result = _run_ocr(sharpened)
-    if sharpened_result.get("available") and _extract_amounts(sharpened_result.get("text", "")):
+    if sharpened_result.get("available") and _extract_amounts(str(sharpened_result.get("text") or "")):
         sharpened_result["ocr_strategy"] = "unsharp_mask_psm6"
         return sharpened_result
 
     # Sparse-text segmentation can recover amounts missed by PSM 6 on
     # perspective-distorted layouts. Word boxes remain mapped to original pixels.
     sparse_result = _run_ocr(image, psm=11)
-    if sparse_result.get("available") and _extract_amounts(sparse_result.get("text", "")):
+    if sparse_result.get("available") and _extract_amounts(str(sparse_result.get("text") or "")):
         sparse_result["ocr_strategy"] = "grayscale_psm11"
         return sparse_result
 
