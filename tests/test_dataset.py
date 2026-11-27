@@ -13,15 +13,15 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
     output = tmp_path / "synthetic-data"
     summary = build_dataset(output, per_split=1, seed=7)
 
-    assert summary["sample_count"] == 15
+    assert summary["sample_count"] == 30
     assert summary["source_receipts"] == 3
-    assert summary["split_counts"] == {"train": 5, "validation": 5, "test": 5}
-    assert summary["class_counts"] == {"synthetic_unmodified": 6, "synthetic_edited": 9}
+    assert summary["split_counts"] == {"train": 10, "validation": 10, "test": 10}
+    assert summary["class_counts"] == {"synthetic_unmodified": 21, "synthetic_edited": 9}
     assert summary["synthetic_only"] is True
 
     with (output / "manifest.csv").open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
-    assert len(rows) == 15
+    assert len(rows) == 30
 
     source_splits = {}
     for row in rows:
@@ -43,8 +43,36 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
 
     assert all(len(splits) == 1 for splits in source_splits.values())
     assert len(source_splits) == 3
+    assert summary["variants_per_source_receipt"] == 10
     assert (output / "manifest.jsonl").is_file()
     assert (output / "DATASET_CARD.json").is_file()
+
+    expected_quality_variants = {
+        "blur_light",
+        "compression_heavy",
+        "crop_resize",
+        "rotate_small",
+        "perspective_warp",
+    }
+    assert expected_quality_variants.issubset({row["variant"] for row in rows})
+    assert summary["variant_counts"]["clean"] == 3
+    assert summary["variant_counts"]["perspective_warp"] == 3
+    for row in rows:
+        parameters = json.loads(row["transform_parameters_json"])
+        assert isinstance(parameters, dict)
+        if row["variant"] == "blur_light":
+            assert 0.8 <= parameters["radius"] <= 1.6
+        elif row["variant"] == "compression_heavy":
+            assert parameters["jpeg_quality"] == 32
+        elif row["variant"] == "crop_resize":
+            assert parameters["resized_to"] == [1000, 1300]
+        elif row["variant"] == "rotate_small":
+            assert abs(parameters["angle_degrees"]) <= 2.2
+        elif row["variant"] == "perspective_warp":
+            assert set(parameters) == {
+                "top_left_x", "top_left_y", "top_right_x", "top_right_y",
+                "bottom_right_x", "bottom_right_y", "bottom_left_x", "bottom_left_y",
+            }
 
 
 def test_synthetic_dataset_builder_refuses_to_overwrite_nonempty_output(tmp_path):
