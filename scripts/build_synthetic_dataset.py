@@ -193,6 +193,165 @@ def make_small_rotation(
     return rotated, {"angle_degrees": angle, "expand": False}
 
 
+def make_screen_glare(
+    original: Image.Image, rng: random.Random
+) -> tuple[Image.Image, dict[str, Any]]:
+    """Add a soft, translucent reflection across part of the amount field."""
+    width, height = original.size
+    center_x = rng.randint(360, 650)
+    center_y = rng.randint(585, 665)
+    radius_x = rng.randint(150, 240)
+    radius_y = rng.randint(55, 105)
+    opacity = rng.randint(38, 62)
+    blur_radius = rng.randint(24, 42)
+
+    overlay = Image.new("RGBA", original.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    draw.ellipse(
+        (
+            center_x - radius_x,
+            center_y - radius_y,
+            center_x + radius_x,
+            center_y + radius_y,
+        ),
+        fill=(255, 255, 255, opacity),
+    )
+    draw.ellipse(
+        (
+            center_x - radius_x // 2,
+            center_y - radius_y // 2,
+            center_x + radius_x // 2,
+            center_y + radius_y // 2,
+        ),
+        fill=(255, 255, 255, min(85, opacity + 18)),
+    )
+    overlay = overlay.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+    reflected = Image.alpha_composite(original.convert("RGBA"), overlay).convert("RGB")
+    return reflected, {
+        "center_xy": [center_x, center_y],
+        "ellipse_radii": [radius_x, radius_y],
+        "opacity": opacity,
+        "blur_radius": blur_radius,
+    }
+
+
+def make_moire_pattern(
+    original: Image.Image, rng: random.Random
+) -> tuple[Image.Image, dict[str, Any]]:
+    """Overlay a faint repeating line pattern similar to screen/camera interference."""
+    width, height = original.size
+    spacing = rng.choice((9, 11, 13))
+    opacity = rng.randint(14, 24)
+    overlay = Image.new("RGBA", original.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    for offset in range(-height, width + height, spacing):
+        draw.line(
+            (offset, 0, offset + height, height),
+            fill=(34, 68, 108, opacity),
+            width=1,
+        )
+    for y in range(0, height, spacing * 3):
+        draw.line(
+            (0, y, width, y),
+            fill=(80, 92, 112, max(8, opacity // 2)),
+            width=1,
+        )
+
+    patterned = Image.alpha_composite(original.convert("RGBA"), overlay).convert("RGB")
+    return patterned, {"line_spacing_px": spacing, "line_opacity": opacity}
+
+
+def make_camera_noise(
+    original: Image.Image, rng: random.Random
+) -> tuple[Image.Image, dict[str, Any]]:
+    """Add deterministic, low-amplitude sensor-like speckles and a slight color cast."""
+    width, height = original.size
+    sigma = rng.choice((16, 20, 24))
+    speckle_count = 24_000
+    alpha_min = max(6, sigma // 3)
+    alpha_max = max(alpha_min + 1, sigma // 2)
+
+    # Draw a sparse high/low pixel-noise layer with the dataset's seeded RNG.
+    # Unlike Pillow's effect_noise(), this stays reproducible for a fixed seed.
+    noise_overlay = Image.new("RGBA", original.size, (0, 0, 0, 0))
+    noise_draw = ImageDraw.Draw(noise_overlay)
+    for _ in range(speckle_count):
+        x = rng.randrange(width)
+        y = rng.randrange(height)
+        value = rng.choice((0, 255))
+        alpha = rng.randint(alpha_min, alpha_max)
+        noise_draw.point((x, y), fill=(value, value, value, alpha))
+    noisy = Image.alpha_composite(original.convert("RGBA"), noise_overlay).convert("RGB")
+
+    tint_alpha = rng.randint(4, 9)
+    tint = Image.new("RGBA", original.size, (255, 238, 220, tint_alpha))
+    noisy = Image.alpha_composite(noisy.convert("RGBA"), tint).convert("RGB")
+    return noisy, {
+        "noise_sigma": sigma,
+        "speckle_count": speckle_count,
+        "speckle_alpha_range": [alpha_min, alpha_max],
+        "warm_tint_alpha": tint_alpha,
+    }
+
+
+def make_edge_shadow(
+    original: Image.Image, rng: random.Random
+) -> tuple[Image.Image, dict[str, Any]]:
+    """Add a soft directional shadow along one edge of a photographed screen."""
+    width, height = original.size
+    side = rng.choice(("left", "right"))
+    depth = rng.randint(230, 360)
+    opacity = rng.randint(42, 72)
+    blur_radius = rng.randint(28, 46)
+
+    mask = Image.new("L", original.size, 0)
+    draw = ImageDraw.Draw(mask)
+    if side == "left":
+        polygon = [(0, 0), (depth, 0), (depth + 85, height), (0, height)]
+    else:
+        polygon = [
+            (width - depth, 0),
+            (width, 0),
+            (width, height),
+            (width - depth - 85, height),
+        ]
+    draw.polygon(polygon, fill=opacity)
+    mask = mask.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+
+    overlay = Image.new("RGBA", original.size, (0, 0, 0, 0))
+    overlay.putalpha(mask)
+    shadowed = Image.alpha_composite(original.convert("RGBA"), overlay).convert("RGB")
+    return shadowed, {
+        "side": side,
+        "depth_px": depth,
+        "opacity": opacity,
+        "blur_radius": blur_radius,
+    }
+
+
+def make_messenger_export(
+    original: Image.Image
+) -> tuple[Image.Image, dict[str, Any]]:
+    """Model a moderate downscale/JPEG recompression/rescale sharing path."""
+    intermediate_size = (720, 936)
+    quality = 52
+    buffer = io.BytesIO()
+    original.resize(intermediate_size, Image.Resampling.LANCZOS).save(
+        buffer, format="JPEG", quality=quality, optimize=True
+    )
+    buffer.seek(0)
+    with Image.open(buffer) as shared:
+        restored = shared.convert("RGB").resize(
+            original.size, Image.Resampling.BICUBIC
+        )
+    return restored, {
+        "intermediate_size": list(intermediate_size),
+        "jpeg_quality": quality,
+        "restored_size": list(original.size),
+    }
+
+
 def _solve_linear_system(matrix: list[list[float]], vector: list[float]) -> list[float]:
     """Solve a small dense system with Gaussian elimination and pivoting."""
     size = len(vector)
@@ -349,6 +508,36 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
             metadata["amount"], "perspective_warp", perspective_parameters,
         ))
 
+        glare, glare_parameters = make_screen_glare(base, rng)
+        variants.append((
+            "screen_glare", glare, "synthetic_unmodified", "none", None,
+            metadata["amount"], "screen_glare", glare_parameters,
+        ))
+
+        moire, moire_parameters = make_moire_pattern(base, rng)
+        variants.append((
+            "moire_pattern", moire, "synthetic_unmodified", "none", None,
+            metadata["amount"], "moire_pattern", moire_parameters,
+        ))
+
+        camera_noise, camera_parameters = make_camera_noise(base, rng)
+        variants.append((
+            "camera_noise", camera_noise, "synthetic_unmodified", "none", None,
+            metadata["amount"], "camera_noise", camera_parameters,
+        ))
+
+        shadow, shadow_parameters = make_edge_shadow(base, rng)
+        variants.append((
+            "edge_shadow", shadow, "synthetic_unmodified", "none", None,
+            metadata["amount"], "edge_shadow", shadow_parameters,
+        ))
+
+        messenger, messenger_parameters = make_messenger_export(base)
+        variants.append((
+            "messenger_export", messenger, "synthetic_unmodified", "none", None,
+            metadata["amount"], "messenger_jpeg_export", messenger_parameters,
+        ))
+
         for (
             variant, image, class_label, manipulation, bbox, visible_amount,
             quality_transform, transform_parameters,
@@ -416,7 +605,7 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
             "The synthetic layouts do not represent or certify any bank.",
             "The edited variants are simple field replacements and do not cover sophisticated forgeries.",
             "Quality variants are controlled transformations, not complete simulations of real cameras, screens, or messaging apps.",
-            "The dataset does not include realistic screen glare, moiré, reflections, camera noise, or messenger-specific processing.",
+            "Screen glare, moiré, shadows, and camera noise are synthetic overlays, not complete physical camera/screen simulations.",
             "Do not claim real-world fraud accuracy from this dataset alone.",
         ],
     }

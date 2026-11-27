@@ -13,15 +13,15 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
     output = tmp_path / "synthetic-data"
     summary = build_dataset(output, per_split=1, seed=7)
 
-    assert summary["sample_count"] == 30
+    assert summary["sample_count"] == 45
     assert summary["source_receipts"] == 3
-    assert summary["split_counts"] == {"train": 10, "validation": 10, "test": 10}
-    assert summary["class_counts"] == {"synthetic_unmodified": 21, "synthetic_edited": 9}
+    assert summary["split_counts"] == {"train": 15, "validation": 15, "test": 15}
+    assert summary["class_counts"] == {"synthetic_unmodified": 36, "synthetic_edited": 9}
     assert summary["synthetic_only"] is True
 
     with (output / "manifest.csv").open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
-    assert len(rows) == 30
+    assert len(rows) == 45
 
     source_splits = {}
     source_variants = {}
@@ -52,8 +52,8 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
 
     assert all(len(splits) == 1 for splits in source_splits.values())
     assert len(source_splits) == 3
-    assert all(len(variants) == 10 for variants in source_variants.values())
-    assert summary["variants_per_source_receipt"] == 10
+    assert all(len(variants) == 15 for variants in source_variants.values())
+    assert summary["variants_per_source_receipt"] == 15
     assert (output / "manifest.jsonl").is_file()
     assert (output / "DATASET_CARD.json").is_file()
 
@@ -63,6 +63,11 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
         "crop_resize",
         "rotate_small",
         "perspective_warp",
+        "screen_glare",
+        "moire_pattern",
+        "camera_noise",
+        "edge_shadow",
+        "messenger_export",
     }
     assert expected_quality_variants.issubset({row["variant"] for row in rows})
     assert summary["variant_counts"]["clean"] == 3
@@ -83,6 +88,23 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
                 "top_left_x", "top_left_y", "top_right_x", "top_right_y",
                 "bottom_right_x", "bottom_right_y", "bottom_left_x", "bottom_left_y",
             }
+        elif row["variant"] == "screen_glare":
+            assert len(parameters["center_xy"]) == 2
+            assert 38 <= parameters["opacity"] <= 62
+        elif row["variant"] == "moire_pattern":
+            assert parameters["line_spacing_px"] in {9, 11, 13}
+            assert 14 <= parameters["line_opacity"] <= 24
+        elif row["variant"] == "camera_noise":
+            assert parameters["noise_sigma"] in {16, 20, 24}
+            assert parameters["speckle_count"] == 24_000
+            assert len(parameters["speckle_alpha_range"]) == 2
+            assert parameters["speckle_alpha_range"][0] < parameters["speckle_alpha_range"][1]
+        elif row["variant"] == "edge_shadow":
+            assert parameters["side"] in {"left", "right"}
+            assert 42 <= parameters["opacity"] <= 72
+        elif row["variant"] == "messenger_export":
+            assert parameters["intermediate_size"] == [720, 936]
+            assert parameters["jpeg_quality"] == 52
 
 
 def test_synthetic_dataset_builder_refuses_to_overwrite_nonempty_output(tmp_path):
@@ -104,6 +126,13 @@ def test_synthetic_dataset_builder_is_reproducible(tmp_path):
     build_dataset(first, per_split=1, seed=42)
     build_dataset(second, per_split=1, seed=42)
     assert (first / "manifest.csv").read_bytes() == (second / "manifest.csv").read_bytes()
+
+    with (first / "manifest.csv").open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    camera_row = next(row for row in rows if row["variant"] == "camera_noise")
+    first_image = first / camera_row["path"]
+    second_image = second / camera_row["path"]
+    assert first_image.read_bytes() == second_image.read_bytes()
 
 
 def test_synthetic_dataset_builder_caps_dataset_size(tmp_path):

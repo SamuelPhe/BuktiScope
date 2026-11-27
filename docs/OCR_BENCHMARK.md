@@ -32,7 +32,7 @@ The API reports the selected method as `ocr_strategy`. Benchmark output includes
 - **Unexpected amount candidates:** extracted amount values that differ from the expected visible amount.
 - **Mean OCR confidence:** average Tesseract confidence when the engine returned a numeric value. This is not a calibrated probability of correctness.
 
-The report includes aggregate metrics and per-variant breakdowns for all ten fixture variants, including blur, heavy compression, crop/resize, small rotation, and perspective warp. The manifest's `visible_amount_idr` is the target because the benchmark asks what OCR can read in the image as it exists, including deliberately edited variants.
+The report includes aggregate metrics and per-variant breakdowns for all 15 fixture variants, including blur, heavy compression, crop/resize, rotation, perspective warp, glare, moiré, camera noise, edge shadow, and messenger-style export. The manifest's `visible_amount_idr` is the target because the benchmark asks what OCR can read in the image as it exists, including deliberately edited variants.
 
 ## Output and privacy
 
@@ -48,6 +48,6 @@ The **Benchmark synthetic OCR** workflow runs when relevant benchmark code is pu
 
 ## Interpretation limits
 
-The synthetic images use a small number of programmatically rendered layouts, simple field replacements, and controlled image degradation/geometric transforms. The OCR may perform unusually well on them because the same fonts and layout patterns are repeated. These metrics do not estimate performance on real screenshots, photographs of screens, glare/moiré, messaging-app exports, unknown bank layouts, or sophisticated image edits. Real-world evaluation requires a consented, de-identified dataset with documented provenance and a privacy/security review.
+The synthetic images use a small number of programmatically rendered layouts, simple field replacements, and controlled image degradation/geometric/capture-condition transforms. The OCR may perform unusually well on them because the same fonts and layout patterns are repeated. These metrics do not estimate performance on real photographs of screens, physical glare/reflections, real display moiré, actual camera sensor pipelines, app-specific exports, unknown bank layouts, or sophisticated image edits. Real-world evaluation requires a consented, de-identified dataset with documented provenance and a privacy/security review.
 
 BuktiScope cannot confirm settlement or account balance from an image. Payment should be confirmed through an official account transaction history or authorized payment provider.
