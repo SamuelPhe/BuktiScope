@@ -16,7 +16,7 @@ The uploaded image is streamed into request memory only and is not written to an
 
 ## Why no ML classifier in v0.1
 
-A classifier trained on a small or poorly sourced dataset could produce confident-looking but misleading results. The MVP therefore starts with deterministic, inspectable checks. A future model needs documented dataset consent/provenance, a held-out test set, bank/device/channel coverage, and published precision, recall, false-positive, and false-negative rates before it can influence decisions.
+A classifier trained on a small or poorly sourced dataset could produce confident-looking but misleading results. The MVP therefore starts with deterministic, inspectable checks. A future model needs documented dataset consent/provenance, a held-out test set, bank/device/channel coverage, and published precision, recall, false-positive, and false-negative rates before it can influence decisions. The synthetic dataset builder keeps all variants from a source receipt in one split, but its simple field replacements are not a proxy for real-world forgeries.
 
 ## Risk model
 

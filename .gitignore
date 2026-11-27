@@ -10,3 +10,6 @@ Thumbs.db
 htmlcov/
 *.sqlite3
 uploads/
+
+# Generated synthetic research fixtures (rebuild with the dataset script)
+/data/synthetic/

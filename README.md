@@ -92,6 +92,16 @@ python -m pytest
 
 GitHub Actions runs the test suite on Python 3.11 and 3.12 for pushes and pull requests.
 
+## Build a labeled synthetic dataset
+
+Generate grouped train/validation/test fixtures (default: 150 images):
+
+```bash
+python scripts/build_synthetic_dataset.py --output data/synthetic --per-split 10 --seed 20261127
+```
+
+The builder creates clean, benign-resize/recompression, and simple edited amount/recipient/date variants. Source receipt groups never cross splits. Every fixture says synthetic/no payment occurred; the data card documents limitations. Generated files under `data/synthetic/` are git-ignored. See [docs/DATASET.md](docs/DATASET.md).
+
 ## Generate synthetic demo images
 
 ```bash
@@ -147,7 +157,8 @@ The request body is streamed with a 10 MB limit to avoid multipart temporary-fil
 - [x] Relative JPEG ELA hotspot regions for human review (informational only).
 - [x] Order amount/recipient text comparison.
 - [x] Explainable scoring, API, tests, and synthetic example generator.
-- [ ] Curated, consented, de-identified evaluation dataset with documented provenance.
+- [x] Reproducible synthetic dataset builder with grouped train/validation/test splits and field-level edit labels.
+- [ ] Curated, consented, de-identified real-world evaluation dataset with documented provenance.
 - [ ] Bank-template parsing with explicit coverage tests and versioned examples.
 - [ ] Localization of suspicious regions and human-review annotations.
 - [ ] Calibrated model evaluation with per-class precision/recall and false-positive analysis.
