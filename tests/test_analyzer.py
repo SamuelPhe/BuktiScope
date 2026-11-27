@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import io
 
 import pytest
@@ -175,6 +176,10 @@ def test_ela_returns_bounded_regions_and_overlay():
     assert ela["available"] is True
     assert len(ela["hotspots"]) <= 3
     assert ela["preview_data_url"].startswith("data:image/png;base64,")
+    preview_bytes = base64.b64decode(ela["preview_data_url"].split(",", 1)[1])
+    preview = Image.open(io.BytesIO(preview_bytes))
+    assert preview.mode == "RGB"
+    assert max(preview.size) <= 650
     for region in ela["hotspots"]:
         assert 0 <= region["x"] < result["image"]["width"]
         assert 0 <= region["y"] < result["image"]["height"]
