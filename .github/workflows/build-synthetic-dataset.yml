@@ -1,0 +1,45 @@
+name: Build synthetic dataset
+
+on:
+  workflow_dispatch:
+    inputs:
+      per_split:
+        description: Source receipts per split (1–100)
+        required: true
+        type: number
+        default: 10
+      seed:
+        description: Deterministic generator seed
+        required: true
+        type: number
+        default: 20261127
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install generator dependency
+        run: python -m pip install "Pillow>=10.4,<13.0"
+      - name: Generate synthetic dataset
+        env:
+          PER_SPLIT: ${{ inputs.per_split }}
+          DATASET_SEED: ${{ inputs.seed }}
+        run: >-
+          python scripts/build_synthetic_dataset.py
+          --output data/synthetic
+          --per-split "$PER_SPLIT"
+          --seed "$DATASET_SEED"
+      - name: Upload dataset artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: buktiscope-synthetic-dataset-${{ github.run_number }}
+          path: data/synthetic/
+          if-no-files-found: error
+          retention-days: 7

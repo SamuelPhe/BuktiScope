@@ -66,3 +66,12 @@ def test_synthetic_dataset_builder_is_reproducible(tmp_path):
     build_dataset(first, per_split=1, seed=42)
     build_dataset(second, per_split=1, seed=42)
     assert (first / "manifest.csv").read_bytes() == (second / "manifest.csv").read_bytes()
+
+
+def test_synthetic_dataset_builder_caps_dataset_size(tmp_path):
+    try:
+        build_dataset(tmp_path / "too-large", per_split=101)
+    except ValueError as error:
+        assert "between 1 and 100" in str(error)
+    else:
+        raise AssertionError("Expected excessive dataset size to be rejected")

@@ -145,8 +145,8 @@ def make_benign_export(original: Image.Image) -> Image.Image:
 
 
 def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> dict[str, Any]:
-    if per_split < 1:
-        raise ValueError("per_split must be at least 1")
+    if per_split < 1 or per_split > 100:
+        raise ValueError("per_split must be between 1 and 100")
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"Output directory is not empty: {output}")
 
