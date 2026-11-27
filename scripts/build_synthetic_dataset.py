@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import argparse
 import csv
+import io
 import json
 import random
-import shutil
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 IMAGE_WIDTH = 1000
 IMAGE_HEIGHT = 1300
@@ -135,13 +135,136 @@ def replace_field(
 def make_benign_export(original: Image.Image) -> Image.Image:
     smaller = original.resize((850, 1105), Image.Resampling.LANCZOS)
     # An in-memory JPEG round-trip models ordinary sharing/export compression.
-    import io
-
     buffer = io.BytesIO()
     smaller.save(buffer, format="JPEG", quality=68, optimize=True)
     buffer.seek(0)
     with Image.open(buffer) as exported:
         return exported.convert("RGB").resize((IMAGE_WIDTH, IMAGE_HEIGHT), Image.Resampling.LANCZOS)
+
+
+
+
+def make_blurred(original: Image.Image, rng: random.Random) -> tuple[Image.Image, dict[str, Any]]:
+    radius = round(rng.choice((0.8, 1.2, 1.6)), 2)
+    return original.filter(ImageFilter.GaussianBlur(radius=radius)), {"radius": radius}
+
+
+def make_heavy_compression(original: Image.Image) -> tuple[Image.Image, dict[str, Any]]:
+    import io
+
+    reduced_size = (650, 845)
+    buffer = io.BytesIO()
+    original.resize(reduced_size, Image.Resampling.LANCZOS).save(
+        buffer, format="JPEG", quality=32, optimize=True
+    )
+    buffer.seek(0)
+    with Image.open(buffer) as compressed:
+        restored = compressed.convert("RGB").resize(
+            (IMAGE_WIDTH, IMAGE_HEIGHT), Image.Resampling.BICUBIC
+        )
+    return restored, {"intermediate_size": list(reduced_size), "jpeg_quality": 32}
+
+
+def make_crop_resize(
+    original: Image.Image, rng: random.Random
+) -> tuple[Image.Image, dict[str, Any]]:
+    width, height = original.size
+    fraction = rng.choice((0.025, 0.035, 0.045))
+    horizontal = max(1, round(width * fraction))
+    vertical = max(1, round(height * fraction))
+    crop_box = (horizontal, vertical, width - horizontal, height - vertical)
+    cropped = original.crop(crop_box).resize(
+        (width, height), Image.Resampling.LANCZOS
+    )
+    return cropped, {
+        "crop_box_xyxy": list(crop_box),
+        "resized_to": [width, height],
+    }
+
+
+def make_small_rotation(
+    original: Image.Image, rng: random.Random
+) -> tuple[Image.Image, dict[str, Any]]:
+    angle = round(rng.uniform(-2.2, 2.2), 2)
+    rotated = original.rotate(
+        angle,
+        resample=Image.Resampling.BICUBIC,
+        expand=False,
+        fillcolor="#f5f7fb",
+    )
+    return rotated, {"angle_degrees": angle, "expand": False}
+
+
+def _solve_linear_system(matrix: list[list[float]], vector: list[float]) -> list[float]:
+    """Solve a small dense system with Gaussian elimination and pivoting."""
+    size = len(vector)
+    augmented = [
+        [float(value) for value in row] + [float(vector[index])]
+        for index, row in enumerate(matrix)
+    ]
+    for column in range(size):
+        pivot = max(range(column, size), key=lambda row: abs(augmented[row][column]))
+        if abs(augmented[pivot][column]) < 1e-12:
+            raise ValueError("Perspective transform points are degenerate")
+        augmented[column], augmented[pivot] = augmented[pivot], augmented[column]
+        divisor = augmented[column][column]
+        augmented[column] = [value / divisor for value in augmented[column]]
+        for row in range(size):
+            if row == column:
+                continue
+            factor = augmented[row][column]
+            if factor:
+                augmented[row] = [
+                    current - factor * pivot_value
+                    for current, pivot_value in zip(augmented[row], augmented[column])
+                ]
+    return [augmented[row][-1] for row in range(size)]
+
+
+def make_perspective_warp(
+    original: Image.Image, rng: random.Random
+) -> tuple[Image.Image, dict[str, Any]]:
+    """Apply a mild keystone warp while keeping the image canvas size unchanged."""
+    width, height = original.size
+    inset = {
+        "top_left_x": rng.randint(12, 24),
+        "top_left_y": rng.randint(6, 16),
+        "top_right_x": rng.randint(12, 24),
+        "top_right_y": rng.randint(4, 14),
+        "bottom_right_x": rng.randint(6, 18),
+        "bottom_right_y": rng.randint(12, 24),
+        "bottom_left_x": rng.randint(6, 18),
+        "bottom_left_y": rng.randint(12, 24),
+    }
+    destination_to_source = [
+        (0.0, 0.0, float(inset["top_left_x"]), float(inset["top_left_y"])),
+        (float(width - 1), 0.0, float(width - 1 - inset["top_right_x"]), float(inset["top_right_y"])),
+        (
+            float(width - 1),
+            float(height - 1),
+            float(width - 1 - inset["bottom_right_x"]),
+            float(height - 1 - inset["bottom_right_y"]),
+        ),
+        (0.0, float(height - 1), float(inset["bottom_left_x"]), float(height - 1 - inset["bottom_left_y"])),
+    ]
+
+    matrix: list[list[float]] = []
+    values: list[float] = []
+    for x, y, source_x, source_y in destination_to_source:
+        matrix.append([x, y, 1.0, 0.0, 0.0, 0.0, -source_x * x, -source_x * y])
+        values.append(source_x)
+        matrix.append([0.0, 0.0, 0.0, x, y, 1.0, -source_y * x, -source_y * y])
+        values.append(source_y)
+
+    coefficients = _solve_linear_system(matrix, values)
+    warped = original.transform(
+        (width, height),
+        Image.Transform.PERSPECTIVE,
+        coefficients,
+        resample=Image.Resampling.BICUBIC,
+        fillcolor="#f5f7fb",
+    )
+    return warped, inset
 
 
 def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> dict[str, Any]:
@@ -166,24 +289,72 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
         split = split_by_index[index]
         source_id = f"receipt_{index:05d}"
         base, metadata = make_receipt(index, rng)
-        variants: list[tuple[str, Image.Image, str, str | None, list[int] | None, int]] = [
-            ("clean", base, "synthetic_unmodified", "none", None, metadata["amount"]),
-            ("benign_export", make_benign_export(base), "synthetic_unmodified", "resize_recompress", None, metadata["amount"]),
+        variants: list[
+            tuple[str, Image.Image, str, str, list[int] | None, int, str, dict[str, Any]]
+        ] = [
+            ("clean", base, "synthetic_unmodified", "none", None, metadata["amount"], "none", {}),
+            (
+                "benign_export", make_benign_export(base), "synthetic_unmodified",
+                "resize_recompress", None, metadata["amount"], "resize_recompress",
+                {"scale": 0.85, "intermediate_jpeg_quality": 68},
+            ),
         ]
 
         amount_value = metadata["amount"] + 1_000_000
         edited_amount, amount_box = replace_field(base, "amount", money(amount_value))
-        variants.append(("edited_amount", edited_amount, "synthetic_edited", "amount_replacement", amount_box, amount_value))
+        variants.append((
+            "edited_amount", edited_amount, "synthetic_edited",
+            "amount_replacement", amount_box, amount_value, "none", {},
+        ))
 
         recipient_value = f"OTHER PAYEE {index:03d}"
         edited_recipient, recipient_box = replace_field(base, "recipient", recipient_value)
-        variants.append(("edited_recipient", edited_recipient, "synthetic_edited", "recipient_replacement", recipient_box, metadata["amount"]))
+        variants.append((
+            "edited_recipient", edited_recipient, "synthetic_edited",
+            "recipient_replacement", recipient_box, metadata["amount"], "none", {},
+        ))
 
         date_value = "12 NOVEMBER 2026"
         edited_date, date_box = replace_field(base, "date", date_value)
-        variants.append(("edited_date", edited_date, "synthetic_edited", "date_replacement", date_box, metadata["amount"]))
+        variants.append((
+            "edited_date", edited_date, "synthetic_edited",
+            "date_replacement", date_box, metadata["amount"], "none", {},
+        ))
 
-        for variant, image, class_label, manipulation, bbox, visible_amount in variants:
+        blurred, blur_parameters = make_blurred(base, rng)
+        variants.append((
+            "blur_light", blurred, "synthetic_unmodified", "none", None,
+            metadata["amount"], "gaussian_blur", blur_parameters,
+        ))
+
+        compressed, compression_parameters = make_heavy_compression(base)
+        variants.append((
+            "compression_heavy", compressed, "synthetic_unmodified", "none", None,
+            metadata["amount"], "low_quality_jpeg", compression_parameters,
+        ))
+
+        cropped, crop_parameters = make_crop_resize(base, rng)
+        variants.append((
+            "crop_resize", cropped, "synthetic_unmodified", "none", None,
+            metadata["amount"], "crop_resize", crop_parameters,
+        ))
+
+        rotated, rotation_parameters = make_small_rotation(base, rng)
+        variants.append((
+            "rotate_small", rotated, "synthetic_unmodified", "none", None,
+            metadata["amount"], "small_rotation", rotation_parameters,
+        ))
+
+        perspective, perspective_parameters = make_perspective_warp(base, rng)
+        variants.append((
+            "perspective_warp", perspective, "synthetic_unmodified", "none", None,
+            metadata["amount"], "perspective_warp", perspective_parameters,
+        ))
+
+        for (
+            variant, image, class_label, manipulation, bbox, visible_amount,
+            quality_transform, transform_parameters,
+        ) in variants:
             filename = f"{source_id}_{variant}.jpg"
             relative_path = Path("images") / split / filename
             destination = output / relative_path
@@ -196,6 +367,8 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
                 "class_label": class_label,
                 "variant": variant,
                 "manipulation": manipulation,
+                "quality_transform": quality_transform,
+                "transform_parameters_json": json.dumps(transform_parameters, sort_keys=True),
                 "expected_amount_idr": metadata["amount"],
                 "visible_amount_idr": visible_amount,
                 "expected_recipient": metadata["recipient"],
@@ -233,12 +406,18 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
             label: sum(1 for row in rows if row["class_label"] == label)
             for label in ("synthetic_unmodified", "synthetic_edited")
         },
+        "variant_counts": {
+            variant: sum(1 for row in rows if row["variant"] == variant)
+            for variant in sorted({row["variant"] for row in rows})
+        },
+        "variants_per_source_receipt": len(variants),
         "seed": seed,
         "synthetic_only": True,
         "limitations": [
             "This is a controlled synthetic dataset, not real bank evidence.",
             "The synthetic layouts do not represent or certify any bank.",
             "The edited variants are simple field replacements and do not cover sophisticated forgeries.",
+            "Quality variants are controlled transformations, not complete simulations of real cameras, screens, or messaging apps.",
             "Do not claim real-world fraud accuracy from this dataset alone.",
         ],
     }
