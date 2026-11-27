@@ -5,7 +5,7 @@ from PIL import Image
 
 HASH_SIZE = 8
 HIGHFREQ_FACTOR = 4
-MIN_IMAGE_STDDEV = 8.0
+MIN_IMAGE_STDDEV = 1.5
 
 
 def _dct_matrix(size: int) -> np.ndarray:
