@@ -134,7 +134,6 @@ def replace_field(
 
 def make_benign_export(original: Image.Image) -> Image.Image:
     smaller = original.resize((850, 1105), Image.Resampling.LANCZOS)
-    buffer_path = None
     # An in-memory JPEG round-trip models ordinary sharing/export compression.
     import io
 
