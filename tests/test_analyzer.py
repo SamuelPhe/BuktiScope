@@ -198,3 +198,67 @@ def test_ela_hotspots_are_informational_and_do_not_change_risk():
 def test_png_does_not_claim_to_have_ela_hotspots():
     result = Analyzer.create().analyze(png_bytes(), "receipt.png")
     assert result["ela"] is None
+
+
+def test_locate_amount_regions_from_ocr_word_boxes(monkeypatch):
+    from app.analyzer import _locate_amount_regions
+
+    text = "TRANSFER BERHASIL Rp 250.000"
+    words = [
+        {"text": "TRANSFER", "x": 20, "y": 20, "width": 90, "height": 18},
+        {"text": "BERHASIL", "x": 120, "y": 20, "width": 95, "height": 18},
+        {"text": "Rp", "x": 40, "y": 200, "width": 24, "height": 22},
+        {"text": "250.000", "x": 70, "y": 200, "width": 92, "height": 22},
+    ]
+    regions = _locate_amount_regions(text, words)
+
+    assert len(regions) == 1
+    assert regions[0]["amount_idr"] == 250000
+    assert regions[0]["x"] == 40
+    assert regions[0]["y"] == 200
+    assert regions[0]["width"] == 122
+    assert regions[0]["height"] == 22
+
+
+def test_analyzer_returns_ocr_overlay_for_detected_amount(monkeypatch):
+    monkeypatch.setattr(analyzer_module, "_run_ocr", lambda image: {
+        "available": True,
+        "language": "ind+eng",
+        "text": "TRANSFER BERHASIL Rp 250.000",
+        "confidence": 92.0,
+        "words": [
+            {"text": "TRANSFER", "x": 15, "y": 20, "width": 90, "height": 18},
+            {"text": "BERHASIL", "x": 110, "y": 20, "width": 100, "height": 18},
+            {"text": "Rp", "x": 30, "y": 100, "width": 20, "height": 20},
+            {"text": "250.000", "x": 55, "y": 100, "width": 90, "height": 20},
+        ],
+    })
+    result = Analyzer.create().analyze(png_bytes(), "receipt.png", expected_amount=250000)
+
+    assert result["ocr"]["amount_regions"][0]["amount_idr"] == 250000
+    assert result["ocr"]["overlay_data_url"].startswith("data:image/jpeg;base64,")
+
+
+def test_tesseract_word_coordinates_scale_back_to_original_image(monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(analyzer_module, "_tesseract_binary", lambda: "tesseract")
+    monkeypatch.setattr(analyzer_module, "_tesseract_languages", lambda: ("eng",))
+    tsv = (
+        "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n"
+        "5\t1\t1\t1\t1\t1\t30\t20\t100\t25\t91.0\tRp\n"
+        "5\t1\t1\t1\t1\t2\t140\t20\t120\t25\t88.0\t250.000\n"
+    )
+    monkeypatch.setattr(
+        analyzer_module.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout=tsv.encode("utf-8")),
+    )
+
+    result = analyzer_module._run_ocr(Image.new("RGB", (2400, 1200), "white"))
+
+    assert result["text"] == "Rp 250.000"
+    assert result["words"][0]["x"] == 40
+    assert result["words"][0]["y"] == 26
+    assert result["words"][0]["width"] == 133
+    assert result["words"][0]["height"] == 33
