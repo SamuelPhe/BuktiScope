@@ -32,13 +32,13 @@ The API reports the selected method as `ocr_strategy`. Benchmark output includes
 - **Unexpected amount candidates:** extracted amount values that differ from the expected visible amount.
 - **Mean OCR confidence:** average Tesseract confidence when the engine returned a numeric value. This is not a calibrated probability of correctness.
 
-The report includes aggregate metrics and per-variant breakdowns for all 15 fixture variants, including blur, heavy compression, crop/resize, rotation, perspective warp, glare, moiré, camera noise, edge shadow, and messenger-style export. The manifest's `visible_amount_idr` is the target because the benchmark asks what OCR can read in the image as it exists, including deliberately edited variants.
+The report includes aggregate metrics, per-variant breakdowns for all 15 fixture variants, and per-layout breakdowns for the three fictional layout families. The manifest's `visible_amount_idr` is the target because the benchmark asks what OCR can read in the image as it exists, including deliberately edited variants.
 
 ## Output and privacy
 
 The script writes:
-- `summary.json`: engine details, aggregate metrics, per-variant metrics, OCR fallback strategy counts, and limitations.
-- `samples.csv`: sample identifier, variant, expected visible amount, extracted amount candidates, match flags, selected OCR strategy, and OCR confidence.
+- `summary.json`: engine details, aggregate metrics, per-variant and per-layout metrics, OCR fallback strategy counts, and limitations.
+- `samples.csv`: sample identifier, layout, variant, expected visible amount, extracted amount candidates, match flags, selected OCR strategy, and OCR confidence.
 
 Raw OCR text and image bytes are not copied into the report. The script accepts only manifest rows explicitly marked `synthetic_only=true`, validates the selected split, and prevents image paths from escaping the dataset directory.
 
