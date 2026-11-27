@@ -427,7 +427,7 @@ def _ela_analysis(image: Image.Image, image_format: str) -> dict[str, Any] | Non
         for item in candidates[:3]
     ]
 
-    preview = ImageEnhance.Contrast(grayscale).enhance(4.0)
+    preview = ImageEnhance.Contrast(grayscale).enhance(4.0).convert("RGB")
     preview.thumbnail((650, 650))
     if hotspots:
         overlay = ImageDraw.Draw(preview)
