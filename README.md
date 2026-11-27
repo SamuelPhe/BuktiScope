@@ -94,13 +94,13 @@ GitHub Actions runs the test suite on Python 3.11 and 3.12 for pushes and pull r
 
 ## Build a labeled synthetic dataset
 
-Generate grouped train/validation/test fixtures (default: 150 images):
+Generate grouped train/validation/test fixtures (default: 300 images):
 
 ```bash
 python scripts/build_synthetic_dataset.py --output data/synthetic --per-split 10 --seed 20261127
 ```
 
-The builder creates clean, benign-resize/recompression, and simple edited amount/recipient/date variants. Source receipt groups never cross splits. Every fixture says synthetic/no payment occurred; the data card documents limitations. Generated files under `data/synthetic/` are git-ignored. You can also generate and download the dataset from GitHub Actions → Build synthetic dataset. The workflow caps each split at 100 source receipts. See [docs/DATASET.md](docs/DATASET.md).
+The builder creates clean and benign-export images, five additional quality/geometric variants (blur, heavy compression, crop/resize, small rotation, and perspective warp), and simple edited amount/recipient/date variants. Source receipt groups never cross splits. Every fixture says synthetic/no payment occurred; the data card documents limitations. Generated files under `data/synthetic/` are git-ignored. You can also generate and download the dataset from GitHub Actions → Build synthetic dataset. The workflow caps each split at 100 source receipts. See [docs/DATASET.md](docs/DATASET.md).
 
 ## Evaluate OCR on synthetic data
 

@@ -17,7 +17,7 @@ From the repository root:
 python scripts/build_synthetic_dataset.py --output data/synthetic --per-split 10 --seed 20261127
 ```
 
-The default creates 30 source receipts and 150 image files (five variants per source). The destination must not already contain files; the builder refuses to overwrite non-empty directories. Choose another output path for another run. The supported range is 1–100 source receipts per split.
+The default creates 30 source receipts and 300 image files (ten variants per source). The destination must not already contain files; the builder refuses to overwrite non-empty directories. Choose another output path for another run. The supported range is 1–100 source receipts per split.
 
 ## Variants
 
@@ -25,11 +25,16 @@ The default creates 30 source receipts and 150 image files (five variants per so
 |---|---|---|
 | `clean` | `synthetic_unmodified` | Base synthetic receipt. |
 | `benign_export` | `synthetic_unmodified` | Same content resized and JPEG-recompressed to represent a benign export. |
+| `blur_light` | `synthetic_unmodified` | Mild Gaussian blur with a deterministic radius. |
+| `compression_heavy` | `synthetic_unmodified` | Downscaled, low-quality JPEG recompression, then resized to the source canvas. |
+| `crop_resize` | `synthetic_unmodified` | Small, deterministic border crop followed by resizing to the source canvas. |
+| `rotate_small` | `synthetic_unmodified` | Small rotation (at most 2.2 degrees) with a neutral fill background. |
+| `perspective_warp` | `synthetic_unmodified` | Mild perspective/keystone warp with an unchanged output canvas. |
 | `edited_amount` | `synthetic_edited` | Amount field replaced with a different visible amount. |
 | `edited_recipient` | `synthetic_edited` | Recipient field replaced. |
 | `edited_date` | `synthetic_edited` | Date field replaced. |
 
-The modifications are intentionally simple and controlled. They do not represent all real-world editing methods and may be easy for a model to learn as synthetic artifacts.
+The modifications are intentionally simple and controlled. The quality variants test common image degradation and geometric changes, but do not simulate complete camera pipelines, screen glare, moiré, shadows, messenger-specific processing, or all real-world editing methods. They may be easy for a model to learn as synthetic artifacts.
 
 ## Split strategy
 
@@ -42,7 +47,7 @@ Train, validation, and test splits are assigned by source receipt ID before gene
 - `DATASET_CARD.json`: summary, split/class counts, seed, and explicit limitations.
 - `images/<split>/*.jpg`: generated images.
 
-Each edited sample includes `manipulation_bbox_xyxy`, the affected field region in original-image pixels. The box is a coarse field-level label, not a pixel-accurate edit mask.
+Each edited sample includes `manipulation_bbox_xyxy`, the affected field region in original-image pixels. The box is a coarse field-level label, not a pixel-accurate edit mask. Every row also includes `quality_transform` and `transform_parameters_json`, which record the image-quality/geometric transformation applied. Transformation parameters are reproducible for the same script version, seed, and split size.
 
 ## Evaluation guidance
 
