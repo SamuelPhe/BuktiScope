@@ -5,6 +5,7 @@ import json
 
 from PIL import Image
 
+from scripts import evaluate_ocr as benchmark_module
 from scripts.evaluate_ocr import evaluate_manifest, load_manifest, summarize
 
 
@@ -101,6 +102,27 @@ def test_evaluate_manifest_writes_minimized_reports(tmp_path):
     assert rows[0]["layout_id"] == "classic_card"
     assert rows[0]["amount_format_id"] == "rp_dot_space"
     assert rows[0]["typography_profile_id"] == "standard_bold"
+
+
+def test_default_benchmark_fallback_receives_expected_amount(monkeypatch, tmp_path):
+    manifest = _make_manifest(tmp_path)
+    output_dir = tmp_path / "target-aware-reports"
+    calls = []
+
+    def fake_fallback(_image, expected_amount=None):
+        calls.append(expected_amount)
+        return {
+            "available": True,
+            "text": "TRANSFER AMOUNT Rp 250.000",
+            "confidence": 95.0,
+            "ocr_strategy": "grayscale_psm6",
+        }
+
+    monkeypatch.setattr(benchmark_module, "_run_ocr_with_fallback", fake_fallback)
+    report = evaluate_manifest(manifest, split="test", output_dir=output_dir)
+
+    assert calls == [250000]
+    assert report["metrics"]["exact_visible_amount_matches"] == 1
 
 
 def test_evaluate_manifest_reports_decoy_amount_candidates(tmp_path):
