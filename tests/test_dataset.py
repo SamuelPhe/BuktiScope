@@ -134,12 +134,49 @@ def test_synthetic_dataset_balances_amount_formats_and_typography(tmp_path):
     with (output / "manifest.csv").open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
 
-    for source_id in {row["source_receipt_id"] for row in rows}:
-        source_rows = [row for row in rows if row["source_receipt_id"] == source_id]
-        assert len({row["amount_format_id"] for row in source_rows}) == 1
-        assert len({row["typography_profile_id"] for row in source_rows}) == 1
-        edited = next(row for row in source_rows if row["variant"] == "edited_amount")
+    source_rows_by_id = {
+        source_id: [row for row in rows if row["source_receipt_id"] == source_id]
+        for source_id in {row["source_receipt_id"] for row in rows}
+    }
+    source_rows = [items[0] for items in source_rows_by_id.values()]
+
+    for items in source_rows_by_id.values():
+        assert len({row["amount_format_id"] for row in items}) == 1
+        assert len({row["typography_profile_id"] for row in items}) == 1
+        assert len({row["layout_id"] for row in items}) == 1
+        edited = next(row for row in items if row["variant"] == "edited_amount")
         assert int(edited["visible_amount_idr"]) == int(edited["expected_amount_idr"]) + 1_000_000
+
+    # Every layout/typography pair must appear; the factors must not be aliases.
+    expected_layout_typography_pairs = {
+        (layout, profile)
+        for layout in LAYOUTS
+        for profile in TYPOGRAPHY_PROFILES
+    }
+    observed_pairs = {
+        (row["layout_id"], row["typography_profile_id"])
+        for row in source_rows
+    }
+    assert observed_pairs == expected_layout_typography_pairs
+    assert set(summary["layout_typography_counts"].values()) == {15}
+
+    # Each amount format is crossed with every layout and typography profile.
+    assert {
+        (row["amount_format_id"], row["layout_id"])
+        for row in source_rows
+    } == {
+        (format_id, layout)
+        for format_id in AMOUNT_FORMATS
+        for layout in LAYOUTS
+    }
+    assert {
+        (row["amount_format_id"], row["typography_profile_id"])
+        for row in source_rows
+    } == {
+        (format_id, profile)
+        for format_id in AMOUNT_FORMATS
+        for profile in TYPOGRAPHY_PROFILES
+    }
 
 
 def test_synthetic_dataset_builder_refuses_to_overwrite_nonempty_output(tmp_path):
