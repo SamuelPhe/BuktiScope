@@ -86,6 +86,34 @@ def test_expected_amount_mismatch_is_explained(monkeypatch):
     assert "OCR" in finding["detail"]
 
 
+def test_analyzer_uses_expected_amount_to_retry_past_decoy_values(monkeypatch):
+    calls = []
+
+    def fake_ocr(image, psm=6):
+        calls.append(psm)
+        if psm == 11:
+            text = "TRANSFER AMOUNT Rp 250.000 BIAYA ADMIN Rp 2.500"
+        else:
+            text = "BIAYA ADMIN Rp 2.500 TOTAL DEBIT Rp 252.500"
+        return {
+            "available": True,
+            "language": "ind+eng",
+            "text": text,
+            "confidence": 92.0,
+            "words": [],
+        }
+
+    monkeypatch.setattr(analyzer_module, "_run_ocr", fake_ocr)
+    result = Analyzer.create().analyze(
+        png_bytes(), "receipt.png", expected_amount=250000
+    )
+
+    assert calls == [6, 6, 11]
+    assert result["comparison"]["amount_match"] is True
+    assert result["ocr"]["ocr_strategy"] == "grayscale_psm11"
+    assert result["ocr"]["amounts_idr"] == [250000, 2500]
+
+
 def test_expected_amount_match_is_not_called_bank_verification(monkeypatch):
     monkeypatch.setattr(analyzer_module, "_run_ocr", lambda image: {
         "available": True, "language": "ind+eng", "text": "TRANSFER BERHASIL Rp 250.000",
@@ -154,6 +182,28 @@ def test_ocr_fallback_retries_when_only_decoy_amount_is_found(monkeypatch):
     assert calls == [6, 6, 11]
     assert result["ocr_strategy"] == "grayscale_psm11"
     assert 250000 in _extract_amounts(result["text"])
+
+
+def test_ocr_fallback_keeps_legacy_behavior_without_expected_amount(monkeypatch):
+    source = Image.new("RGB", (320, 420), "white")
+    calls = []
+
+    def fake_ocr(image, psm=6):
+        calls.append(psm)
+        return {
+            "available": True,
+            "language": "ind+eng",
+            "text": "BIAYA ADMIN Rp 2.500",
+            "confidence": 92.0,
+            "words": [],
+        }
+
+    monkeypatch.setattr(analyzer_module, "_run_ocr", fake_ocr)
+    result = _run_ocr_with_fallback(source)
+
+    assert calls == [6]
+    assert result["ocr_strategy"] == "grayscale_psm6"
+    assert _extract_amounts(result["text"]) == [2500]
 
 
 def test_ocr_fallback_uses_sparse_text_mode_after_unsharp_fails(monkeypatch):
