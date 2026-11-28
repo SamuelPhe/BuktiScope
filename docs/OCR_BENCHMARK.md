@@ -32,15 +32,17 @@ The API reports the selected method as `ocr_strategy`. Benchmark output includes
 - **Unexpected amount candidates:** extracted amount values that differ from the expected visible amount.
 - **Samples with unexpected candidates:** number and rate of images where OCR returned at least one non-target monetary value.
 - **Expected amount candidate precision:** expected target-amount hits divided by all extracted monetary candidates. A sample with the target amount plus two decoy amounts contributes one expected candidate and two unexpected candidates.
+- **Amount-role labels:** a lexical heuristic checks words on the same OCR line as each amount (for example, `NOMINAL TRANSFER`, `BIAYA ADMIN`, or `TOTAL DEBIT`). It reports transfer-, fee-, debit-total-, balance-labeled, or unclassified candidates.
+- **Transfer-label match rate:** among samples with an explicitly transfer-labeled amount candidate, the share where that candidate matches the expected visible amount. This is unavailable when no transfer label was recognized.
 - **Mean OCR confidence:** average Tesseract confidence when the engine returned a numeric value. This is not a calibrated probability of correctness.
 
-The report includes aggregate metrics, per-variant and per-layout breakdowns, breakdowns by amount format and typography profile, and all nine layout/typography cross-groups in each default split. Each grouped section also reports how often each OCR strategy was used. The manifest's `visible_amount_idr` is the transfer-amount target because the benchmark asks what OCR can read in the image as it exists, including deliberately edited variants. The dense-context fixture deliberately includes admin-fee and total-debit values; candidate precision shows whether OCR returns these alongside the target.
+The report includes aggregate metrics, per-variant and per-layout breakdowns, breakdowns by amount format and typography profile, and all nine layout/typography cross-groups in each default split. Each grouped section also reports how often each OCR strategy was used. The manifest's `visible_amount_idr` is the transfer-amount target because the benchmark asks what OCR can read in the image as it exists, including deliberately edited variants. The dense-context fixture deliberately includes admin-fee and total-debit values. Same-line amount-role labels help separate them, but depend on OCR correctly reading the nearby words and are not a universal template parser or proof of transaction semantics.
 
 ## Output and privacy
 
 The script writes:
-- `summary.json`: engine details, exact-match/coverage/candidate-precision metrics, per-variant, per-layout, per-format, per-typography and layout/typography cross-group metrics, with OCR strategy counts for each group.
-- `samples.csv`: sample identifier, layout, amount format, typography profile, variant, expected visible amount, extracted amount candidates, candidate count, match flags, selected OCR strategy, and OCR confidence.
+- `summary.json`: engine details, exact-match/coverage/candidate-precision and role-label metrics, per-variant, per-layout, per-format, per-typography and layout/typography cross-group metrics, with OCR strategy counts for each group.
+- `samples.csv`: sample identifier, layout, amount format, typography profile, variant, expected visible amount, extracted candidates, candidate role counts, transfer-labeled candidate values, match flags, selected OCR strategy, and OCR confidence.
 
 Raw OCR text and image bytes are not copied into the report. The script accepts only manifest rows explicitly marked `synthetic_only=true`, validates the selected split, and prevents image paths from escaping the dataset directory.
 
