@@ -501,6 +501,58 @@ def test_fee_label_takes_priority_over_transfer_word():
     )
 
 
+def test_analyzer_exposes_label_aware_amount_roles(monkeypatch):
+    text = (
+        "NOMINAL TRANSFER Rp 250.000 "
+        "BIAYA ADMIN Rp 2.500 "
+        "TOTAL DEBIT Rp 252.500"
+    )
+    tokens = [
+        ("NOMINAL", "line-1"), ("TRANSFER", "line-1"),
+        ("Rp", "line-1"), ("250.000", "line-1"),
+        ("BIAYA", "line-2"), ("ADMIN", "line-2"),
+        ("Rp", "line-2"), ("2.500", "line-2"),
+        ("TOTAL", "line-3"), ("DEBIT", "line-3"),
+        ("Rp", "line-3"), ("252.500", "line-3"),
+    ]
+    words = [
+        {
+            "text": token,
+            "x": index * 40,
+            "y": 100 + (int(line[-1]) - 1) * 30,
+            "width": 35,
+            "height": 18,
+            "line_key": line,
+        }
+        for index, (token, line) in enumerate(tokens)
+    ]
+
+    monkeypatch.setattr(analyzer_module, "_run_ocr", lambda image, psm=6: {
+        "available": True,
+        "language": "ind+eng",
+        "text": text,
+        "confidence": 94.0,
+        "words": words,
+    })
+    result = Analyzer.create().analyze(
+        png_bytes(), "receipt.png", expected_amount=250000
+    )
+
+    assert result["comparison"]["amount_match"] is True
+    assert result["ocr"]["amounts_idr"] == [250000, 2500, 252500]
+    assert result["ocr"]["transfer_labeled_amounts_idr"] == [250000]
+    assert [region["amount_role"] for region in result["ocr"]["amount_regions"]] == [
+        "transfer_labeled", "fee_labeled", "debit_total_labeled",
+    ]
+    assert result["ocr"]["amount_role_counts"] == {
+        "transfer_labeled": 1,
+        "fee_labeled": 1,
+        "debit_total_labeled": 1,
+        "balance_labeled": 0,
+        "unclassified": 0,
+    }
+
+
 def test_analyzer_returns_ocr_overlay_for_detected_amount(monkeypatch):
     monkeypatch.setattr(analyzer_module, "_run_ocr", lambda image: {
         "available": True,
