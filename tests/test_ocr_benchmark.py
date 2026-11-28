@@ -182,6 +182,7 @@ def test_evaluate_manifest_reports_decoy_amount_candidates(tmp_path):
     assert row["extracted_amounts_idr"] == "[250000, 2500, 252500]"
     assert json.loads(row["amount_role_counts"]) == {
         "transfer_labeled": 1,
+        "amount_labeled": 0,
         "fee_labeled": 1,
         "debit_total_labeled": 1,
         "balance_labeled": 0,
