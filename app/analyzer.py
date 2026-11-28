@@ -171,18 +171,66 @@ class Analyzer:
                 ))
 
         amount_match: bool | None = None
+        amount_match_basis: str | None = None
         if expected_amount is not None and extracted_amounts and (ocr["confidence"] or 0) >= 40:
-            amount_match = int(expected_amount) in extracted_amounts
+            expected_value = int(expected_amount)
+            if transfer_labeled_amounts:
+                # Prefer explicit transfer context over unrelated money values.
+                comparison_amounts = transfer_labeled_amounts
+                amount_match_basis = "transfer_labeled"
+            elif expected_value in extracted_amounts:
+                matching_regions = [
+                    region for region in amount_regions
+                    if region["amount_idr"] == expected_value
+                ]
+                non_transfer_roles = {
+                    "fee_labeled", "debit_total_labeled", "balance_labeled",
+                }
+                if matching_regions and all(
+                    region["amount_role"] in non_transfer_roles
+                    for region in matching_regions
+                ):
+                    comparison_amounts = []
+                    amount_match_basis = "non_transfer_labeled"
+                else:
+                    comparison_amounts = extracted_amounts
+                    amount_match_basis = "unlabeled_or_generic_candidate"
+            else:
+                comparison_amounts = extracted_amounts
+                amount_match_basis = "ocr_candidates"
+
+            amount_match = expected_value in comparison_amounts
+            expected_non_transfer_match = any(
+                region["amount_idr"] == expected_value
+                and region["amount_role"] in {
+                    "fee_labeled", "debit_total_labeled", "balance_labeled",
+                }
+                for region in amount_regions
+            )
             if not amount_match:
                 score += 25
+                detail = (
+                    "Nominal pesanan hanya cocok dengan kandidat yang berlabel biaya, total debit, atau saldo; "
+                    "kecocokan tersebut tidak dianggap sebagai nominal transfer. Periksa secara manual."
+                    if expected_non_transfer_match
+                    else "Nominal yang diharapkan tidak ditemukan pada kandidat berlabel transfer atau hasil OCR yang tersedia. "
+                    "OCR bisa salah membaca angka; periksa gambar dan data transaksi sebelum mengambil tindakan."
+                )
                 findings.append(_finding(
                     "amount_mismatch", "medium", "Nominal yang terbaca tidak cocok dengan pesanan",
-                    "Nominal yang disediakan tidak ditemukan pada teks OCR. OCR bisa salah membaca angka; periksa gambar dan data transaksi sebelum mengambil tindakan.", 25,
+                    detail, 25,
                 ))
             else:
+                detail = (
+                    "Nominal yang diharapkan cocok dengan kandidat yang memiliki label transfer. Label ini merupakan petunjuk teks, "
+                    "bukan validasi rekening atau bukti dana diterima."
+                    if amount_match_basis == "transfer_labeled"
+                    else "Nominal yang diharapkan ditemukan dalam kandidat OCR. Konteks label transfer tidak tersedia atau tidak cukup jelas; "
+                    "ini bukan bukti transfer berhasil."
+                )
                 findings.append(_finding(
                     "amount_match", "info", "Nominal pesanan ditemukan dalam teks OCR",
-                    "Nominal yang diharapkan ditemukan oleh OCR. Ini tidak membuktikan transfer berhasil.", 0,
+                    detail, 0,
                 ))
         elif expected_amount is not None:
             findings.append(_finding(
@@ -256,6 +304,7 @@ class Analyzer:
             "comparison": {
                 "expected_amount_idr": expected_amount,
                 "amount_match": amount_match,
+                "amount_match_basis": amount_match_basis,
                 "expected_recipient": expected_recipient,
                 "recipient_text_match": recipient_match,
             },

@@ -81,6 +81,7 @@ def test_expected_amount_mismatch_is_explained(monkeypatch):
     })
     result = Analyzer.create().analyze(png_bytes(), "receipt.png", expected_amount=500000)
     assert result["comparison"]["amount_match"] is False
+    assert result["comparison"]["amount_match_basis"] == "ocr_candidates"
     finding = next(item for item in result["findings"] if item["code"] == "amount_mismatch")
     assert finding["points"] == 25
     assert "OCR" in finding["detail"]
@@ -114,6 +115,69 @@ def test_analyzer_uses_expected_amount_to_retry_past_decoy_values(monkeypatch):
     assert result["ocr"]["amounts_idr"] == [250000, 2500]
 
 
+def test_admin_fee_does_not_match_order_when_transfer_label_exists(monkeypatch):
+    text = (
+        "NOMINAL TRANSFER Rp 250.000 "
+        "BIAYA ADMIN Rp 2.500 "
+        "TOTAL DEBIT Rp 252.500"
+    )
+    tokens = [
+        ("NOMINAL", "line-1"), ("TRANSFER", "line-1"),
+        ("Rp", "line-1"), ("250.000", "line-1"),
+        ("BIAYA", "line-2"), ("ADMIN", "line-2"),
+        ("Rp", "line-2"), ("2.500", "line-2"),
+        ("TOTAL", "line-3"), ("DEBIT", "line-3"),
+        ("Rp", "line-3"), ("252.500", "line-3"),
+    ]
+    words = [
+        {
+            "text": token,
+            "x": index * 40,
+            "y": 100 + (int(line[-1]) - 1) * 30,
+            "width": 35,
+            "height": 18,
+            "line_key": line,
+        }
+        for index, (token, line) in enumerate(tokens)
+    ]
+    monkeypatch.setattr(analyzer_module, "_run_ocr", lambda image, psm=6: {
+        "available": True, "language": "ind+eng", "text": text,
+        "confidence": 94.0, "words": words,
+    })
+
+    result = Analyzer.create().analyze(
+        png_bytes(), "receipt.png", expected_amount=2500
+    )
+
+    assert result["comparison"]["amount_match"] is False
+    assert result["comparison"]["amount_match_basis"] == "transfer_labeled"
+    assert result["risk_score"] == 25
+    mismatch = next(item for item in result["findings"] if item["code"] == "amount_mismatch")
+    assert "berlabel biaya" in mismatch["detail"]
+
+
+def test_fee_only_expected_amount_is_not_treated_as_transfer(monkeypatch):
+    text = "BIAYA ADMIN Rp 2.500"
+    words = [
+        {"text": "BIAYA", "x": 10, "y": 10, "width": 40, "height": 16, "line_key": "fee"},
+        {"text": "ADMIN", "x": 55, "y": 10, "width": 42, "height": 16, "line_key": "fee"},
+        {"text": "Rp", "x": 105, "y": 10, "width": 18, "height": 16, "line_key": "fee"},
+        {"text": "2.500", "x": 130, "y": 10, "width": 45, "height": 16, "line_key": "fee"},
+    ]
+    monkeypatch.setattr(analyzer_module, "_run_ocr", lambda image, psm=6: {
+        "available": True, "language": "ind+eng", "text": text,
+        "confidence": 92.0, "words": words,
+    })
+
+    result = Analyzer.create().analyze(
+        png_bytes(), "receipt.png", expected_amount=2500
+    )
+
+    assert result["comparison"]["amount_match"] is False
+    assert result["comparison"]["amount_match_basis"] == "non_transfer_labeled"
+    assert result["risk_score"] == 25
+
+
 def test_expected_amount_match_is_not_called_bank_verification(monkeypatch):
     monkeypatch.setattr(analyzer_module, "_run_ocr", lambda image: {
         "available": True, "language": "ind+eng", "text": "TRANSFER BERHASIL Rp 250.000",
@@ -121,6 +185,7 @@ def test_expected_amount_match_is_not_called_bank_verification(monkeypatch):
     })
     result = Analyzer.create().analyze(png_bytes(), "receipt.png", expected_amount=250000)
     assert result["comparison"]["amount_match"] is True
+    assert result["comparison"]["amount_match_basis"] == "unlabeled_or_generic_candidate"
     assert result["risk_score"] == 0
     assert "bukan bukti" in result["disclaimer"]
 
@@ -597,6 +662,7 @@ def test_analyzer_exposes_label_aware_amount_roles(monkeypatch):
     )
 
     assert result["comparison"]["amount_match"] is True
+    assert result["comparison"]["amount_match_basis"] == "transfer_labeled"
     assert result["ocr"]["amounts_idr"] == [250000, 2500, 252500]
     assert result["ocr"]["transfer_labeled_amounts_idr"] == [250000]
     assert [region["amount_role"] for region in result["ocr"]["amount_regions"]] == [
