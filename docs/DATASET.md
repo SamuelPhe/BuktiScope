@@ -21,7 +21,7 @@ Each source receipt is assigned to one of three fictional layout families. All v
 
 The builder balances source receipts across layout families within each train, validation, and test split. The manifest records `layout_id` so OCR performance can be compared by layout.
 
-The builder also varies five amount formats (`Rp 250.000`, `Rp250.000`, `Rp 250.000,00`, `IDR 250,000`, and `Rp 250000`) and three typography profiles (standard bold, compact bold, and large regular). Each source receipt keeps one amount format and typography profile across its 15 image variants. In the default ten-source-per-split dataset, every split contains all nine layout × typography combinations. Every amount format appears twice per split, with the two source receipts assigned to different layouts and typography profiles. The dataset card records the cross-counts.
+The builder also varies five amount formats (`Rp 250.000`, `Rp250.000`, `Rp 250.000,00`, `IDR 250,000`, and `Rp 250000`) and three typography profiles (standard bold, compact bold, and large regular). Each source receipt keeps one amount format and typography profile across its 18 image variants. In the default ten-source-per-split dataset, every split contains all nine layout × typography combinations. Every amount format appears twice per split, with the two source receipts assigned to different layouts and typography profiles. The dataset card records the cross-counts.
 
 ## Build
 
@@ -31,7 +31,7 @@ From the repository root:
 python scripts/build_synthetic_dataset.py --output data/synthetic --per-split 10 --seed 20261127
 ```
 
-The default creates 30 source receipts and 450 image files (15 variants per source), balanced across three fictional layout families, five amount formats, and three typography profiles. The destination must not already contain files; the builder refuses to overwrite non-empty directories. Choose another output path for another run. The supported range is 1–100 source receipts per split.
+The default creates 30 source receipts and 540 image files (18 variants per source), balanced across three fictional layout families, five amount formats, and three typography profiles. The destination must not already contain files; the builder refuses to overwrite non-empty directories. Choose another output path for another run. The supported range is 1–100 source receipts per split.
 
 ## Variants
 
@@ -49,11 +49,14 @@ The default creates 30 source receipts and 450 image files (15 variants per sour
 | `camera_noise` | `synthetic_unmodified` | Low-amplitude grain mixed with a slight warm color cast. |
 | `edge_shadow` | `synthetic_unmodified` | Soft directional shadow along one image edge. |
 | `messenger_export` | `synthetic_unmodified` | Downscale and moderate JPEG recompression followed by rescaling. |
+| `amount_small_font` | `synthetic_unmodified` | Amount is redrawn with a small regular 20 px font. |
+| `amount_low_contrast` | `synthetic_unmodified` | Amount uses a muted foreground against the light field background. |
+| `dense_amount_context` | `synthetic_unmodified` | Small-print admin-fee and total-debit amounts appear below the transfer amount. |
 | `edited_amount` | `synthetic_edited` | Amount field replaced with a different visible amount. |
 | `edited_recipient` | `synthetic_edited` | Recipient field replaced. |
 | `edited_date` | `synthetic_edited` | Date field replaced. |
 
-The modifications are intentionally simple and controlled. The newer screen/camera variants use overlays and compression approximations; they do not reproduce physical optics, sensor pipelines, display subpixels, real moiré, complex reflections, or app-specific processing exactly. All transformations may be easy for a model to learn as synthetic artifacts.
+The modifications are intentionally simple and controlled. Small-font, low-contrast, and dense-context variants are OCR stress fixtures, not image-tampering labels. Dense context intentionally includes other legitimate monetary values so that OCR candidate extraction can be distinguished from identifying the transfer amount. The newer screen/camera variants use overlays and compression approximations; they do not reproduce physical optics, sensor pipelines, display subpixels, real moiré, complex reflections, or app-specific processing exactly. All transformations may be easy for a model to learn as synthetic artifacts.
 
 ## Split strategy
 
