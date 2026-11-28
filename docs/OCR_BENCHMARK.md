@@ -19,7 +19,7 @@ The default evaluates the held-out `test` split. Use `--split all` only for expl
 
 ## OCR fallback strategy
 
-The application first runs the existing grayscale Tesseract pass with page segmentation mode (PSM) 6. When an expected amount is supplied, the pipeline checks whether that specific value appears among the extracted candidates; finding an unrelated fee or debit total does not stop fallback. If the target is missing, it tries an unsharp-mask PSM 6 pass and then one grayscale PSM 11 sparse-text pass, retaining the first result that contains the expected amount. If no target amount is supplied, the original behavior remains: fallback runs only when the primary pass finds no Rupiah amount. If no pass finds the target, the primary result is retained for review.
+The application first runs the existing grayscale Tesseract pass with page segmentation mode (PSM) 6. When an expected amount is supplied, the pipeline checks whether that specific value appears among the extracted candidates; finding an unrelated fee or debit total does not stop fallback. If the target is missing, it tries an unsharp-mask PSM 6 pass and then one grayscale PSM 11 sparse-text pass, retaining the first result that contains the expected amount with Tesseract confidence of at least 40. If no target amount is supplied, the original behavior remains: fallback runs only when the primary pass finds no Rupiah amount. If no pass finds the target, the primary result is retained for review.
 
 The API reports the selected method as `ocr_strategy`. Benchmark output includes strategy counts in `summary.json` and a strategy value for each sample in `samples.csv`.
 
