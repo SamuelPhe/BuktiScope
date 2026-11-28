@@ -165,6 +165,7 @@ def test_evaluate_manifest_reports_decoy_amount_candidates(tmp_path):
     assert report["metrics"]["expected_amount_candidate_precision"] == 0.3333
     assert report["metrics"]["amount_role_counts"] == {
         "transfer_labeled": 1,
+        "amount_labeled": 0,
         "fee_labeled": 1,
         "debit_total_labeled": 1,
         "balance_labeled": 0,
