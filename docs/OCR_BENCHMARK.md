@@ -17,6 +17,12 @@ python -m scripts.evaluate_ocr --manifest data/synthetic/manifest.csv --split te
 
 The default evaluates the held-out `test` split. Use `--split all` only for exploratory checks; do not tune an OCR pipeline against the test split and then present the same result as an independent test.
 
+## Expected amount comparison
+
+When the analyzer receives an expected order amount and OCR recognizes explicit transfer-labeled candidates, only those candidates are used for the amount comparison. A matching value found only beside a fee, debit-total, or balance label is not treated as an order match. If no transfer-labeled candidate is available, the analyzer retains the generic OCR-candidate fallback; the response includes `amount_match_basis` so the caller can distinguish the evidence used.
+
+This remains a text-and-layout heuristic. It does not verify account ownership, settlement, or funds received.
+
 ## OCR fallback strategy
 
 The application first runs the existing grayscale Tesseract pass with page segmentation mode (PSM) 6. When an expected amount is supplied, the pipeline checks whether that specific value appears among the extracted candidates; finding an unrelated fee or debit total does not stop fallback. If the target is missing, it tries an unsharp-mask PSM 6 pass and then one grayscale PSM 11 sparse-text pass, retaining the first result that contains the expected amount with Tesseract confidence of at least 40. If no target amount is supplied, the original behavior remains: fallback runs only when the primary pass finds no Rupiah amount. If no pass finds the target, the primary result is retained for review.
