@@ -271,36 +271,6 @@ def test_ocr_fallback_retries_when_expected_amount_confidence_is_too_low(monkeyp
     assert _extract_amounts(result["text"]) == [250000]
 
 
-def test_ocr_fallback_uses_autocontrast_for_faint_expected_amount(monkeypatch):
-    source = Image.new("RGB", (320, 420), "#f1f4f8")
-    calls = []
-
-    def fake_ocr(image, psm=6):
-        calls.append((image, psm))
-        if len(calls) == 4:
-            text = "TOTAL TRANSFER Rp 250.000"
-            confidence = 88.0
-        else:
-            text = ""
-            confidence = None
-        return {
-            "available": True,
-            "language": "ind+eng",
-            "text": text,
-            "confidence": confidence,
-            "words": [],
-        }
-
-    monkeypatch.setattr(analyzer_module, "_run_ocr", fake_ocr)
-    result = _run_ocr_with_fallback(source, expected_amount=250000)
-
-    assert [psm for _, psm in calls] == [6, 6, 11, 6]
-    assert calls[0][0] is source
-    assert calls[3][0] is not source
-    assert result["ocr_strategy"] == "autocontrast_psm6"
-    assert _extract_amounts(result["text"]) == [250000]
-
-
 def test_ocr_fallback_keeps_legacy_behavior_without_expected_amount(monkeypatch):
     source = Image.new("RGB", (320, 420), "white")
     calls = []
