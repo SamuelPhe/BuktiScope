@@ -499,12 +499,12 @@ def _locate_amount_regions(text: str, words: list[dict[str, Any]]) -> list[dict[
         spans.append((start, end, word))
         cursor = end
 
-    line_groups: dict[str, list[str]] = {}
+    line_groups: dict[str, list[dict[str, Any]]] = {}
     for word in words:
         line_key = word.get("line_key")
         token = str(word.get("text") or "").strip()
         if line_key is not None and token:
-            line_groups.setdefault(str(line_key), []).append(token)
+            line_groups.setdefault(str(line_key), []).append(word)
 
     regions: list[dict[str, Any]] = []
     amount_pattern = re.compile(
@@ -532,13 +532,49 @@ def _locate_amount_regions(text: str, words: list[dict[str, Any]]) -> list[dict[
             if word.get("line_key") is not None
         }
         line_key = next(iter(line_keys)) if len(line_keys) == 1 else None
-        line_text = " ".join(line_groups.get(line_key, [])) if line_key else ""
+        line_words = line_groups.get(line_key, []) if line_key else []
+        line_text = " ".join(str(word.get("text") or "") for word in line_words)
         amount_role, context_label = _classify_amount_line(line_text)
+        context_position = "same_line" if amount_role != "unclassified" else None
+
+        # Some receipts print the field label just above the amount box.
+        # Associate only a nearby recognized label with horizontal overlap.
+        if amount_role == "unclassified":
+            nearby_labels: list[tuple[int, str, str]] = []
+            amount_width = max(1, x1 - x0)
+            for candidate_key, candidate_words in line_groups.items():
+                if candidate_key == line_key:
+                    continue
+                candidate_text = " ".join(
+                    str(word.get("text") or "") for word in candidate_words
+                )
+                candidate_role, candidate_label = _classify_amount_line(candidate_text)
+                if candidate_role == "unclassified" or not candidate_label:
+                    continue
+                label_x0 = min(int(word["x"]) for word in candidate_words)
+                label_y1 = max(
+                    int(word["y"]) + int(word["height"]) for word in candidate_words
+                )
+                label_x1 = max(
+                    int(word["x"]) + int(word["width"]) for word in candidate_words
+                )
+                label_width = max(1, label_x1 - label_x0)
+                overlap = max(0, min(x1, label_x1) - max(x0, label_x0))
+                overlap_ratio = overlap / min(amount_width, label_width)
+                vertical_gap = y0 - label_y1
+                if 0 <= vertical_gap <= 100 and overlap_ratio >= 0.3:
+                    nearby_labels.append((vertical_gap, candidate_role, candidate_label))
+
+            if nearby_labels:
+                _, amount_role, context_label = min(nearby_labels, key=lambda item: item[0])
+                context_position = "adjacent_label_above"
+
         regions.append({
             "amount_idr": amount,
             "text": match.group(0),
             "amount_role": amount_role,
             "context_label": context_label,
+            "context_position": context_position,
             "x": x0,
             "y": y0,
             "width": max(1, x1 - x0),
