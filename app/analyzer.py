@@ -138,7 +138,7 @@ class Analyzer:
                 0,
             ))
 
-        ocr = _run_ocr_with_fallback(image)
+        ocr = _run_ocr_with_fallback(image, expected_amount=expected_amount)
         extracted_amounts = _extract_amounts(ocr["text"])
         amount_regions = _locate_amount_regions(ocr["text"], ocr.get("words", []))
         ocr_overlay = _ocr_overlay(image, amount_regions)
@@ -363,11 +363,18 @@ def _run_ocr(image: Image.Image, psm: int = 6) -> dict[str, Any]:
         return {"available": True, "language": selected, "text": "", "confidence": None, "words": []}
 
 
-def _run_ocr_with_fallback(image: Image.Image) -> dict[str, Any]:
-    """Try alternate OCR preparation only when the default pass finds no IDR amount."""
+def _run_ocr_with_fallback(
+    image: Image.Image,
+    expected_amount: int | None = None,
+) -> dict[str, Any]:
+    """Retry OCR when the supplied target amount is missing, not just when all amounts are."""
+    def target_found(result: dict[str, Any]) -> bool:
+        amounts = _extract_amounts(str(result.get("text") or ""))
+        return int(expected_amount) in amounts if expected_amount is not None else bool(amounts)
+
     primary = _run_ocr(image)
     primary["ocr_strategy"] = "grayscale_psm6"
-    if not primary.get("available") or _extract_amounts(str(primary.get("text") or "")):
+    if not primary.get("available") or target_found(primary):
         return primary
 
     # Sharpening is a targeted fallback for mild blur; keep the original image
@@ -376,14 +383,14 @@ def _run_ocr_with_fallback(image: Image.Image) -> dict[str, Any]:
         ImageFilter.UnsharpMask(radius=2, percent=250, threshold=2)
     )
     sharpened_result = _run_ocr(sharpened)
-    if sharpened_result.get("available") and _extract_amounts(str(sharpened_result.get("text") or "")):
+    if sharpened_result.get("available") and target_found(sharpened_result):
         sharpened_result["ocr_strategy"] = "unsharp_mask_psm6"
         return sharpened_result
 
     # Sparse-text segmentation can recover amounts missed by PSM 6 on
     # perspective-distorted layouts. Word boxes remain mapped to original pixels.
     sparse_result = _run_ocr(image, psm=11)
-    if sparse_result.get("available") and _extract_amounts(str(sparse_result.get("text") or "")):
+    if sparse_result.get("available") and target_found(sparse_result):
         sparse_result["ocr_strategy"] = "grayscale_psm11"
         return sparse_result
 
