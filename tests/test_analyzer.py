@@ -31,6 +31,20 @@ def test_extracts_indonesian_rupiah_amounts():
     assert _parse_idr_number("250,000") == 250000
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Total Rp 250.000",
+        "Total Rp250.000",
+        "Total Rp 250.000,00",
+        "Total IDR 250,000",
+        "Total Rp 250000",
+    ],
+)
+def test_extracts_supported_rupiah_format_variants(text):
+    assert _extract_amounts(text) == [250000]
+
+
 def test_invalid_image_is_rejected():
     with pytest.raises(AnalysisError, match="gambar yang valid"):
         Analyzer.create().analyze(b"not an image", "receipt.png")

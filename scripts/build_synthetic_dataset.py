@@ -54,6 +54,20 @@ LAYOUTS = {
     },
 }
 
+AMOUNT_FORMATS = {
+    "rp_dot_space": "Rp 250.000",
+    "rp_dot_compact": "Rp250.000",
+    "rp_decimal_00": "Rp 250.000,00",
+    "idr_comma": "IDR 250,000",
+    "rp_plain_digits": "Rp 250000",
+}
+
+TYPOGRAPHY_PROFILES = {
+    "standard_bold": {"amount": (52, True), "recipient": (29, True), "date": (27, True)},
+    "compact_bold": {"amount": (38, True), "recipient": (24, True), "date": (22, True)},
+    "large_regular": {"amount": (48, False), "recipient": (27, False), "date": (25, False)},
+}
+
 
 def load_font(size: int, bold: bool = False):
     candidates = [
@@ -67,8 +81,19 @@ def load_font(size: int, bold: bool = False):
     return ImageFont.load_default()
 
 
-def money(value: int) -> str:
-    return "Rp " + f"{value:,}".replace(",", ".")
+def format_amount(value: int, format_id: str) -> str:
+    grouped_dot = f"{value:,}".replace(",", ".")
+    if format_id == "rp_dot_space":
+        return f"Rp {grouped_dot}"
+    if format_id == "rp_dot_compact":
+        return f"Rp{grouped_dot}"
+    if format_id == "rp_decimal_00":
+        return f"Rp {grouped_dot},00"
+    if format_id == "idr_comma":
+        return f"IDR {value:,}"
+    if format_id == "rp_plain_digits":
+        return f"Rp {value:,}".replace(",", "")
+    raise ValueError(f"Unsupported amount format: {format_id}")
 
 
 def save_jpeg(image: Image.Image, path: Path, quality: int = 94) -> None:
@@ -77,10 +102,15 @@ def save_jpeg(image: Image.Image, path: Path, quality: int = 94) -> None:
 
 
 def make_receipt(
-    index: int, rng: random.Random, layout_id: str
+    index: int,
+    rng: random.Random,
+    layout_id: str,
+    amount_format_id: str,
+    typography_profile_id: str,
 ) -> tuple[Image.Image, dict[str, Any]]:
     layout = LAYOUTS[layout_id]
     fields = layout["fields"]
+    typography = TYPOGRAPHY_PROFILES[typography_profile_id]
     background = rng.choice(("#f5f7fb", "#f3f6f8", "#f7f6f2"))
     accent = layout["accent"]
     amount = 250_000 + index * 12_500
@@ -138,8 +168,8 @@ def make_receipt(
     draw.rounded_rectangle(amount_box, radius=12, fill="#f1f4f8")
     draw.text(
         (amount_box[0] + 30, amount_box[1] + 35),
-        money(amount),
-        font=load_font(52, True),
+        format_amount(amount, amount_format_id),
+        font=load_font(*typography["amount"]),
         fill="#172943",
     )
 
@@ -148,7 +178,7 @@ def make_receipt(
     draw.text(
         (recipient_box[0] + 30, recipient_box[1] + 30),
         recipient,
-        font=load_font(29, True),
+        font=load_font(*typography["recipient"]),
         fill="#344761",
     )
 
@@ -157,7 +187,7 @@ def make_receipt(
     draw.text(
         (date_box[0] + 30, date_box[1] + 28),
         date,
-        font=load_font(27, True),
+        font=load_font(*typography["date"]),
         fill="#344761",
     )
 
@@ -171,6 +201,8 @@ def make_receipt(
         "date": date,
         "reference": reference,
         "layout_id": layout_id,
+        "amount_format_id": amount_format_id,
+        "typography_profile_id": typography_profile_id,
         "boxes": {name: list(box) for name, box in fields.items()},
     }
     return image, metadata
@@ -180,22 +212,20 @@ def replace_field(
     field: str,
     replacement: str,
     field_boxes: dict[str, tuple[int, int, int, int]],
+    typography: dict[str, tuple[int, bool]],
 ) -> tuple[Image.Image, list[int]]:
     image = original.copy()
     draw = ImageDraw.Draw(image)
     box = field_boxes[field]
     x0, y0, x1, y1 = box
     draw.rounded_rectangle(box, radius=12, fill="#f1f4f8" if field == "amount" else "#f8f9fb")
-    if field == "amount":
-        font = load_font(52, True)
-        text_y = y0 + 35
-    elif field == "recipient":
-        font = load_font(29, True)
-        text_y = y0 + 30
-    else:
-        font = load_font(27, True)
-        text_y = y0 + 28
-    draw.text((x0 + 30, text_y), replacement, font=font, fill="#172943" if field == "amount" else "#344761")
+    text_y = y0 + (35 if field == "amount" else 30 if field == "recipient" else 28)
+    draw.text(
+        (x0 + 30, text_y),
+        replacement,
+        font=load_font(*typography[field]),
+        fill="#172943" if field == "amount" else "#344761",
+    )
     return image, list(box)
 
 
@@ -503,15 +533,19 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
     rng.shuffle(source_indices)
     split_by_index: dict[int, str] = {}
     layout_by_index: dict[int, str] = {}
+    amount_format_by_index: dict[int, str] = {}
+    typography_by_index: dict[int, str] = {}
     layout_names = tuple(LAYOUTS)
+    amount_format_names = tuple(AMOUNT_FORMATS)
+    typography_names = tuple(TYPOGRAPHY_PROFILES)
     cursor = 0
     for split_position, split in enumerate(split_names):
         split_indices = source_indices[cursor:cursor + per_split]
         for position, index in enumerate(split_indices):
             split_by_index[index] = split
-            layout_by_index[index] = layout_names[
-                (position + split_position) % len(layout_names)
-            ]
+            layout_by_index[index] = layout_names[(position + split_position) % len(layout_names)]
+            amount_format_by_index[index] = amount_format_names[position % len(amount_format_names)]
+            typography_by_index[index] = typography_names[(position + split_position) % len(typography_names)]
         cursor += per_split
 
     rows: list[dict[str, Any]] = []
@@ -519,7 +553,12 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
         split = split_by_index[index]
         source_id = f"receipt_{index:05d}"
         layout_id = layout_by_index[index]
-        base, metadata = make_receipt(index, rng, layout_id)
+        amount_format_id = amount_format_by_index[index]
+        typography_profile_id = typography_by_index[index]
+        typography = TYPOGRAPHY_PROFILES[typography_profile_id]
+        base, metadata = make_receipt(
+            index, rng, layout_id, amount_format_id, typography_profile_id
+        )
         field_boxes = {
             name: tuple(box)
             for name, box in metadata["boxes"].items()
@@ -536,21 +575,24 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
         ]
 
         amount_value = metadata["amount"] + 1_000_000
-        edited_amount, amount_box = replace_field(base, "amount", money(amount_value), field_boxes)
+        edited_amount, amount_box = replace_field(
+            base, "amount", format_amount(amount_value, amount_format_id),
+            field_boxes, typography,
+        )
         variants.append((
             "edited_amount", edited_amount, "synthetic_edited",
             "amount_replacement", amount_box, amount_value, "none", {},
         ))
 
         recipient_value = f"OTHER PAYEE {index:03d}"
-        edited_recipient, recipient_box = replace_field(base, "recipient", recipient_value, field_boxes)
+        edited_recipient, recipient_box = replace_field(base, "recipient", recipient_value, field_boxes, typography)
         variants.append((
             "edited_recipient", edited_recipient, "synthetic_edited",
             "recipient_replacement", recipient_box, metadata["amount"], "none", {},
         ))
 
         date_value = "12 NOVEMBER 2026"
-        edited_date, date_box = replace_field(base, "date", date_value, field_boxes)
+        edited_date, date_box = replace_field(base, "date", date_value, field_boxes, typography)
         variants.append((
             "edited_date", edited_date, "synthetic_edited",
             "date_replacement", date_box, metadata["amount"], "none", {},
@@ -632,6 +674,8 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
                 "class_label": class_label,
                 "variant": variant,
                 "layout_id": layout_id,
+                "amount_format_id": amount_format_id,
+                "typography_profile_id": typography_profile_id,
                 "manipulation": manipulation,
                 "quality_transform": quality_transform,
                 "transform_parameters_json": json.dumps(transform_parameters, sort_keys=True),
@@ -690,6 +734,14 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
                 for layout in LAYOUTS
             }
             for split in split_names
+        },
+        "amount_format_counts": {
+            format_id: sum(1 for row in rows if row["amount_format_id"] == format_id)
+            for format_id in AMOUNT_FORMATS
+        },
+        "typography_profile_counts": {
+            profile: sum(1 for row in rows if row["typography_profile_id"] == profile)
+            for profile in TYPOGRAPHY_PROFILES
         },
         "seed": seed,
         "synthetic_only": True,

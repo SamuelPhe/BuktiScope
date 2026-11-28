@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from scripts.build_synthetic_dataset import LAYOUTS, build_dataset
+from scripts.build_synthetic_dataset import AMOUNT_FORMATS, LAYOUTS, TYPOGRAPHY_PROFILES, build_dataset
 
 
 def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
@@ -32,6 +32,8 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
         source_variants.setdefault(source_id, set()).add(row["variant"])
         source_layouts.setdefault(source_id, set()).add(row["layout_id"])
         assert row["layout_id"] in LAYOUTS
+        assert row["amount_format_id"] in AMOUNT_FORMATS
+        assert row["typography_profile_id"] in TYPOGRAPHY_PROFILES
         assert row["synthetic_only"] == "True"
         expected_amount = int(row["expected_amount_idr"])
         visible_amount = int(row["visible_amount_idr"])
@@ -115,6 +117,29 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
         elif row["variant"] == "messenger_export":
             assert parameters["intermediate_size"] == [720, 936]
             assert parameters["jpeg_quality"] == 52
+
+
+def test_synthetic_dataset_balances_amount_formats_and_typography(tmp_path):
+    output = tmp_path / "format-profile-data"
+    summary = build_dataset(output, per_split=5, seed=19)
+
+    assert summary["sample_count"] == 225
+    assert summary["amount_format_counts"] == {
+        format_id: 45 for format_id in AMOUNT_FORMATS
+    }
+    assert summary["typography_profile_counts"] == {
+        profile: 75 for profile in TYPOGRAPHY_PROFILES
+    }
+
+    with (output / "manifest.csv").open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    for source_id in {row["source_receipt_id"] for row in rows}:
+        source_rows = [row for row in rows if row["source_receipt_id"] == source_id]
+        assert len({row["amount_format_id"] for row in source_rows}) == 1
+        assert len({row["typography_profile_id"] for row in source_rows}) == 1
+        edited = next(row for row in source_rows if row["variant"] == "edited_amount")
+        assert int(edited["visible_amount_idr"]) == int(edited["expected_amount_idr"]) + 1_000_000
 
 
 def test_synthetic_dataset_builder_refuses_to_overwrite_nonempty_output(tmp_path):

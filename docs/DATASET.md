@@ -21,6 +21,8 @@ Each source receipt is assigned to one of three fictional layout families. All v
 
 The builder balances source receipts across layout families within each train, validation, and test split. The manifest records `layout_id` so OCR performance can be compared by layout.
 
+The builder also varies five amount formats (`Rp 250.000`, `Rp250.000`, `Rp 250.000,00`, `IDR 250,000`, and `Rp 250000`) and three typography profiles (standard bold, compact bold, and large regular). Each source receipt keeps one amount format and typography profile across its 15 image variants. This keeps the experiment grouped and reproducible.
+
 ## Build
 
 From the repository root:
@@ -29,7 +31,7 @@ From the repository root:
 python scripts/build_synthetic_dataset.py --output data/synthetic --per-split 10 --seed 20261127
 ```
 
-The default creates 30 source receipts and 450 image files (15 variants per source), balanced across three fictional layout families. The destination must not already contain files; the builder refuses to overwrite non-empty directories. Choose another output path for another run. The supported range is 1–100 source receipts per split.
+The default creates 30 source receipts and 450 image files (15 variants per source), balanced across three fictional layout families, five amount formats, and three typography profiles. The destination must not already contain files; the builder refuses to overwrite non-empty directories. Choose another output path for another run. The supported range is 1–100 source receipts per split.
 
 ## Variants
 
@@ -64,7 +66,7 @@ Train, validation, and test splits are assigned by source receipt ID before gene
 - `DATASET_CARD.json`: summary, split/class counts, seed, and explicit limitations.
 - `images/<split>/*.jpg`: generated images.
 
-Each edited sample includes `manipulation_bbox_xyxy`, the affected field region in original-image pixels. The box is a coarse field-level label, not a pixel-accurate edit mask. Every row also includes `layout_id`, `quality_transform`, and `transform_parameters_json`, which record the layout and image-quality/geometric transformation applied. Transformation parameters are reproducible for the same script version, seed, and split size.
+Each edited sample includes `manipulation_bbox_xyxy`, the affected field region in original-image pixels. The box is a coarse field-level label, not a pixel-accurate edit mask. Every row also includes `layout_id`, `amount_format_id`, `typography_profile_id`, `quality_transform`, and `transform_parameters_json`, which record its display formatting and transformations. Transformation parameters are reproducible for the same script version, seed, and split size.
 
 ## Evaluation guidance
 

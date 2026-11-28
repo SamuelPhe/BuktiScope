@@ -35,7 +35,10 @@ def _make_manifest(tmp_path, *, image_relative_path="images/test/sample.jpg", sy
     Image.new("RGB", (120, 160), "white").save(image_path, format="JPEG")
 
     manifest = tmp_path / "manifest.csv"
-    fields = ["sample_id", "split", "path", "variant", "layout_id", "visible_amount_idr", "synthetic_only"]
+    fields = [
+        "sample_id", "split", "path", "variant", "layout_id",
+        "amount_format_id", "typography_profile_id", "visible_amount_idr", "synthetic_only",
+    ]
     with manifest.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
@@ -45,6 +48,8 @@ def _make_manifest(tmp_path, *, image_relative_path="images/test/sample.jpg", sy
             "path": image_relative_path,
             "variant": "clean",
             "layout_id": "classic_card",
+            "amount_format_id": "rp_dot_space",
+            "typography_profile_id": "standard_bold",
             "visible_amount_idr": "250000",
             "synthetic_only": synthetic_only,
         })
@@ -69,6 +74,8 @@ def test_evaluate_manifest_writes_minimized_reports(tmp_path):
     assert report["by_variant"]["clean"]["amount_read_coverage_rate"] == 1.0
     assert report["by_layout"]["classic_card"]["sample_count"] == 1
     assert report["by_layout"]["classic_card"]["exact_visible_amount_matches"] == 1
+    assert report["by_amount_format"]["rp_dot_space"]["sample_count"] == 1
+    assert report["by_typography_profile"]["standard_bold"]["sample_count"] == 1
     assert report["ocr_strategy_counts"] == {"custom": 1}
     assert (output_dir / "summary.json").is_file()
     assert (output_dir / "samples.csv").is_file()
@@ -80,6 +87,8 @@ def test_evaluate_manifest_writes_minimized_reports(tmp_path):
     assert rows[0]["extracted_amounts_idr"] == "[250000]"
     assert rows[0]["ocr_strategy"] == "custom"
     assert rows[0]["layout_id"] == "classic_card"
+    assert rows[0]["amount_format_id"] == "rp_dot_space"
+    assert rows[0]["typography_profile_id"] == "standard_bold"
 
 
 def test_manifest_rejects_non_synthetic_rows(tmp_path):
