@@ -25,9 +25,9 @@ This remains a text-and-layout heuristic. It does not verify account ownership, 
 
 ## OCR fallback strategy
 
-The application first runs the grayscale Tesseract pass with page segmentation mode (PSM) 6. When an expected amount is supplied, the pipeline checks whether that specific value appears among the extracted candidates; finding an unrelated fee or debit total does not stop fallback. If the target is missing, it tries unsharp-mask PSM 6 and then grayscale PSM 11 sparse-text mode. The first result that contains the expected amount with Tesseract confidence of at least 40 is retained. If no target amount is supplied, fallback runs only when the primary pass finds no Rupiah amount. If no pass finds the target, the primary result is retained for review.
+The application first runs the grayscale Tesseract pass with page segmentation mode (PSM) 6. When the expected amount is missing but an explicit transfer label was read, it first OCRs a bounded crop just below that label at 2× size; the crop result is mapped back to original-image coordinates. If the target is still missing, it tries unsharp-mask PSM 6 and then grayscale PSM 11 sparse-text mode. The first result that contains the expected amount with Tesseract confidence of at least 40 is retained. Finding an unrelated fee or debit total does not stop fallback. If no target amount is supplied, fallback runs only when the primary pass finds no Rupiah amount. If no pass finds the target, the primary result is retained for review.
 
-The API reports the selected method as `ocr_strategy`. Benchmark output includes strategy counts in `summary.json` and a strategy value for each sample in `samples.csv`.
+The API reports the selected method as `ocr_strategy` (`transfer_label_roi_psm6` identifies the targeted crop pass). Benchmark output includes strategy counts in `summary.json` and a strategy value for each sample in `samples.csv`.
 
 ## Metrics
 
