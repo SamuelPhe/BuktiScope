@@ -69,7 +69,7 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
     assert all(len(variants) == 18 for variants in source_variants.values())
     assert all(len(layouts) == 1 for layouts in source_layouts.values())
     assert summary["variants_per_source_receipt"] == 18
-    assert summary["layout_counts"] == {layout: 15 for layout in LAYOUTS}
+    assert summary["layout_counts"] == {layout: 18 for layout in LAYOUTS}
     assert sum(summary["layout_counts_by_split"]["train"].values()) == 18
     assert sum(summary["layout_counts_by_split"]["validation"].values()) == 18
     assert sum(summary["layout_counts_by_split"]["test"].values()) == 18
