@@ -104,11 +104,20 @@ function renderResult(data) {
   const ocrOverlay = data.ocr.overlay_data_url;
   if (typeof ocrOverlay === 'string' && ocrOverlay.startsWith('data:image/jpeg;base64,')) {
     document.querySelector('#ocr-overlay-image').src = ocrOverlay;
-    document.querySelector('#ocr-region-list').innerHTML = (data.ocr.amount_regions || []).map((region, index) =>
-      '<div><span>' + (index + 1) + '</span><b>' + escapeHtml(formatRupiah(region.amount_idr)) +
-      '</b><small>X ' + region.x + ' · Y ' + region.y + ' · ' + region.width + ' × ' +
-      region.height + ' px</small></div>'
-    ).join('');
+    const amountRoleLabels = {
+      transfer_labeled: 'Label: nominal transfer',
+      fee_labeled: 'Label: biaya/admin',
+      debit_total_labeled: 'Label: total debit',
+      balance_labeled: 'Label: saldo',
+      unclassified: 'Label belum dikenali'
+    };
+    document.querySelector('#ocr-region-list').innerHTML = (data.ocr.amount_regions || []).map((region, index) => {
+      const roleLabel = amountRoleLabels[region.amount_role] || 'Label belum dikenali';
+      const context = region.context_label ? ' (' + region.context_label + ')' : '';
+      return '<div><span>' + (index + 1) + '</span><b>' + escapeHtml(formatRupiah(region.amount_idr)) +
+        '</b><small>' + escapeHtml(roleLabel + context) + ' · X ' + region.x + ' · Y ' + region.y +
+        ' · ' + region.width + ' × ' + region.height + ' px</small></div>';
+    }).join('');
     ocrAnnotation.classList.remove('hidden');
   } else {
     document.querySelector('#ocr-overlay-image').removeAttribute('src');
