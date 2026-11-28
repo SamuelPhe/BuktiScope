@@ -145,6 +145,10 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
     expected_transfer_matches = sum(
         bool(item.get("expected_in_transfer_label")) for item in records
     )
+    expected_transfer_candidate_count = sum(
+        int(item.get("expected_transfer_labeled_candidate_count", 0))
+        for item in records
+    )
     transfer_labeled_sample_count = sum(
         int(item.get("amount_role_counts", {}).get("transfer_labeled", 0)) > 0
         for item in records
@@ -170,12 +174,13 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
         "amount_role_counts": amount_role_counts,
         "samples_with_transfer_labeled_amount": transfer_labeled_sample_count,
         "expected_transfer_labeled_amount_matches": expected_transfer_matches,
+        "expected_transfer_labeled_candidate_count": expected_transfer_candidate_count,
         "expected_transfer_label_match_rate_when_labeled": (
             _rate(expected_transfer_matches, transfer_labeled_sample_count)
             if transfer_labeled_sample_count else None
         ),
         "transfer_labeled_candidate_precision": (
-            _rate(expected_transfer_matches, transfer_candidate_count)
+            _rate(expected_transfer_candidate_count, transfer_candidate_count)
             if transfer_candidate_count else None
         ),
         "exact_amount_match_rate": _rate(exact_count, sample_count),
@@ -230,6 +235,9 @@ def evaluate_manifest(
             region["amount_idr"] for region in amount_regions
             if region["amount_role"] == "transfer_labeled"
         ]
+        expected_transfer_candidate_count = sum(
+            amount == expected for amount in transfer_labeled_amounts
+        )
         amount_role_counts = {
             role: sum(1 for region in amount_regions if region["amount_role"] == role)
             for role in (
@@ -262,6 +270,7 @@ def evaluate_manifest(
             "amount_role_counts": amount_role_counts,
             "transfer_labeled_amounts_idr": transfer_labeled_amounts,
             "expected_in_transfer_label": expected in transfer_labeled_amounts,
+            "expected_transfer_labeled_candidate_count": expected_transfer_candidate_count,
             "ocr_available": bool(ocr_result.get("available")),
             "ocr_strategy": str(ocr_result.get("ocr_strategy") or "custom"),
             "confidence": confidence_value,
