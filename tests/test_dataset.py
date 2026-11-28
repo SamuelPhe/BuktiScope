@@ -152,10 +152,10 @@ def test_synthetic_dataset_balances_amount_formats_and_typography(tmp_path):
 
     assert summary["sample_count"] == 270
     assert summary["amount_format_counts"] == {
-        format_id: 45 for format_id in AMOUNT_FORMATS
+        format_id: 54 for format_id in AMOUNT_FORMATS
     }
     assert summary["typography_profile_counts"] == {
-        profile: 75 for profile in TYPOGRAPHY_PROFILES
+        profile: 90 for profile in TYPOGRAPHY_PROFILES
     }
 
     with (output / "manifest.csv").open(encoding="utf-8", newline="") as handle:
