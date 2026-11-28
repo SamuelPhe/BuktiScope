@@ -141,6 +141,17 @@ class Analyzer:
         ocr = _run_ocr_with_fallback(image, expected_amount=expected_amount)
         extracted_amounts = _extract_amounts(ocr["text"])
         amount_regions = _locate_amount_regions(ocr["text"], ocr.get("words", []))
+        transfer_labeled_amounts = [
+            region["amount_idr"] for region in amount_regions
+            if region["amount_role"] == "transfer_labeled"
+        ]
+        amount_role_counts = {
+            role: sum(1 for region in amount_regions if region["amount_role"] == role)
+            for role in (
+                "transfer_labeled", "fee_labeled", "debit_total_labeled",
+                "balance_labeled", "unclassified",
+            )
+        }
         ocr_overlay = _ocr_overlay(image, amount_regions)
         normalized_expected = _normalize_recipient(expected_recipient)
         recipient_match: bool | None = None
@@ -238,6 +249,8 @@ class Analyzer:
                 "transfer_keywords": transfer_term_hits,
                 "amounts_idr": extracted_amounts,
                 "amount_regions": amount_regions,
+                "transfer_labeled_amounts_idr": transfer_labeled_amounts,
+                "amount_role_counts": amount_role_counts,
                 "overlay_data_url": ocr_overlay,
             },
             "comparison": {
@@ -347,6 +360,10 @@ def _run_ocr(image: Image.Image, psm: int = 6) -> dict[str, Any]:
                             "y": top,
                             "width": box_width,
                             "height": box_height,
+                            "line_key": ":".join(
+                                str(row.get(key) or "0")
+                                for key in ("block_num", "par_num", "line_num")
+                            ),
                         })
                 except (TypeError, ValueError, OverflowError):
                     pass
@@ -435,8 +452,36 @@ def _extract_amounts(text: str) -> list[int]:
 
 
 
+def _classify_amount_line(line_text: str) -> tuple[str, str | None]:
+    """Classify an amount using explicit words on the same OCR line only."""
+    normalized = re.sub(r"[^A-Z0-9]+", " ", line_text.upper()).strip()
+    if not normalized:
+        return "unclassified", None
+
+    labels = (
+        ("fee_labeled", (
+            "BIAYA ADMIN", "ADMIN FEE", "SERVICE FEE", "BIAYA LAYANAN",
+            "BIAYA TRANSFER", "BIAYA", "FEE", "CHARGE", "PAJAK", "PPN", "TAX",
+        )),
+        ("debit_total_labeled", (
+            "TOTAL DEBIT", "DEBIT TOTAL", "TOTAL PENARIKAN", "JUMLAH DEBIT",
+        )),
+        ("balance_labeled", ("SALDO", "BALANCE")),
+        ("transfer_labeled", (
+            "NOMINAL TRANSFER", "JUMLAH TRANSFER", "TRANSFER AMOUNT",
+            "AMOUNT TRANSFER", "TOTAL TRANSFER", "TRANSFER", "NOMINAL",
+        )),
+    )
+    padded = f" {normalized} "
+    for role, phrases in labels:
+        for phrase in phrases:
+            if f" {phrase} " in padded:
+                return role, phrase
+    return "unclassified", None
+
+
 def _locate_amount_regions(text: str, words: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Map IDR amount matches to OCR word boxes in original-image pixels."""
+    """Map IDR matches to original pixels and classify explicit same-line context."""
     if not text or not words:
         return []
 
@@ -452,6 +497,13 @@ def _locate_amount_regions(text: str, words: list[dict[str, Any]]) -> list[dict[
         end = start + len(token)
         spans.append((start, end, word))
         cursor = end
+
+    line_groups: dict[str, list[str]] = {}
+    for word in words:
+        line_key = word.get("line_key")
+        token = str(word.get("text") or "").strip()
+        if line_key is not None and token:
+            line_groups.setdefault(str(line_key), []).append(token)
 
     regions: list[dict[str, Any]] = []
     amount_pattern = re.compile(
@@ -472,9 +524,20 @@ def _locate_amount_regions(text: str, words: list[dict[str, Any]]) -> list[dict[
         amount = _parse_idr_number(match.group(1))
         if amount is None:
             continue
+
+        line_keys = {
+            str(word["line_key"])
+            for word in matching_words
+            if word.get("line_key") is not None
+        }
+        line_key = next(iter(line_keys)) if len(line_keys) == 1 else None
+        line_text = " ".join(line_groups.get(line_key, [])) if line_key else ""
+        amount_role, context_label = _classify_amount_line(line_text)
         regions.append({
             "amount_idr": amount,
             "text": match.group(0),
+            "amount_role": amount_role,
+            "context_label": context_label,
             "x": x0,
             "y": y0,
             "width": max(1, x1 - x0),
