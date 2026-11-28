@@ -173,6 +173,7 @@ def test_evaluate_manifest_reports_decoy_amount_candidates(tmp_path):
     }
     assert report["metrics"]["samples_with_transfer_labeled_amount"] == 1
     assert report["metrics"]["expected_transfer_labeled_amount_matches"] == 1
+    assert report["metrics"]["expected_transfer_labeled_candidate_count"] == 1
     assert report["metrics"]["expected_transfer_label_match_rate_when_labeled"] == 1.0
     assert report["metrics"]["transfer_labeled_candidate_precision"] == 1.0
     with (output_dir / "samples.csv").open(encoding="utf-8", newline="") as handle:
@@ -188,6 +189,7 @@ def test_evaluate_manifest_reports_decoy_amount_candidates(tmp_path):
     }
     assert json.loads(row["transfer_labeled_amounts_idr"]) == [250000]
     assert row["expected_in_transfer_label"] == "True"
+    assert row["expected_transfer_labeled_candidate_count"] == "1"
 
 
 def test_manifest_rejects_non_synthetic_rows(tmp_path):
