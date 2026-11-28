@@ -190,6 +190,66 @@ def test_expected_amount_match_is_not_called_bank_verification(monkeypatch):
     assert "bukan bukti" in result["disclaimer"]
 
 
+def test_transfer_label_roi_box_uses_bounded_area_below_explicit_label():
+    from app.analyzer import _transfer_label_roi_box
+
+    image = Image.new("RGB", (320, 420), "white")
+    words = [
+        {"text": "TOTAL", "x": 50, "y": 100, "width": 55, "height": 18, "line_key": "1:1:1"},
+        {"text": "TRANSFER", "x": 110, "y": 100, "width": 70, "height": 18, "line_key": "1:1:1"},
+    ]
+
+    assert _transfer_label_roi_box(image, words) == (15, 88, 271, 298)
+
+
+def test_transfer_label_roi_ocr_recovers_expected_amount_and_maps_boxes(monkeypatch):
+    source = Image.new("RGB", (320, 420), "white")
+    calls = []
+
+    def fake_ocr(image, psm=6):
+        calls.append((image, psm))
+        if len(calls) == 1:
+            return {
+                "available": True,
+                "language": "ind+eng",
+                "text": "TOTAL TRANSFER",
+                "confidence": 93.0,
+                "words": [
+                    {"text": "TOTAL", "x": 50, "y": 100, "width": 55, "height": 18, "line_key": "1:1:1"},
+                    {"text": "TRANSFER", "x": 110, "y": 100, "width": 70, "height": 18, "line_key": "1:1:1"},
+                ],
+            }
+        assert image.size == (512, 420)
+        return {
+            "available": True,
+            "language": "ind+eng",
+            "text": "Rp 250.000",
+            "confidence": 91.9,
+            "words": [
+                {"text": "Rp", "x": 60, "y": 140, "width": 35, "height": 36, "line_key": "1:1:1"},
+                {"text": "250.000", "x": 100, "y": 140, "width": 130, "height": 36, "line_key": "1:1:1"},
+            ],
+        }
+
+    monkeypatch.setattr(analyzer_module, "_run_ocr", fake_ocr)
+    result = _run_ocr_with_fallback(source, expected_amount=250000)
+
+    assert [psm for _, psm in calls] == [6, 6]
+    assert calls[0][0] is source
+    assert calls[1][0] is not source
+    assert result["ocr_strategy"] == "transfer_label_roi_psm6"
+    assert result["text"] == "TOTAL TRANSFER Rp 250.000"
+    assert _extract_amounts(result["text"]) == [250000]
+    assert result["words"][-2]["x"] == 45
+    assert result["words"][-2]["y"] == 158
+    assert result["words"][-2]["line_key"] == "roi:1:1:1"
+
+    from app.analyzer import _locate_amount_regions
+    regions = _locate_amount_regions(result["text"], result["words"])
+    assert regions[0]["amount_role"] == "transfer_labeled"
+    assert regions[0]["context_position"] == "adjacent_label_above"
+
+
 def test_ocr_fallback_uses_unsharp_only_when_primary_has_no_amount(monkeypatch):
     source = Image.new("RGB", (320, 420), "white")
     calls = []
