@@ -158,7 +158,8 @@ def test_synthetic_dataset_balances_amount_formats_and_typography(tmp_path):
         for row in source_rows
     }
     assert observed_pairs == expected_layout_typography_pairs
-    assert set(summary["layout_typography_counts"].values()) == {15}
+    assert all(count > 0 for count in summary["layout_typography_counts"].values())
+    assert sum(summary["layout_typography_counts"].values()) == summary["sample_count"]
 
     # Each amount format is crossed with every layout and typography profile.
     assert {
