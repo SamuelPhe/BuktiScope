@@ -168,6 +168,24 @@ def test_synthetic_dataset_balances_amount_formats_and_typography(tmp_path):
     assert all(count > 0 for count in summary["layout_typography_counts"].values())
     assert sum(summary["layout_typography_counts"].values()) == summary["sample_count"]
 
+    # Each amount format is represented across every layout and typography profile.
+    assert {
+        (row["amount_format_id"], row["layout_id"])
+        for row in source_rows
+    } == {
+        (format_id, layout)
+        for format_id in AMOUNT_FORMATS
+        for layout in LAYOUTS
+    }
+    assert {
+        (row["amount_format_id"], row["typography_profile_id"])
+        for row in source_rows
+    } == {
+        (format_id, profile)
+        for format_id in AMOUNT_FORMATS
+        for profile in TYPOGRAPHY_PROFILES
+    }
+
 
 
 def test_default_source_factor_assignment_is_fully_crossed_per_split():
