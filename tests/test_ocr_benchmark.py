@@ -76,6 +76,11 @@ def test_evaluate_manifest_writes_minimized_reports(tmp_path):
     assert report["by_layout"]["classic_card"]["exact_visible_amount_matches"] == 1
     assert report["by_amount_format"]["rp_dot_space"]["sample_count"] == 1
     assert report["by_typography_profile"]["standard_bold"]["sample_count"] == 1
+    assert report["by_layout_typography"]["classic_card|standard_bold"]["sample_count"] == 1
+    assert report["by_layout"]["classic_card"]["ocr_strategy_counts"] == {"custom": 1}
+    assert report["by_amount_format"]["rp_dot_space"]["ocr_strategy_counts"] == {"custom": 1}
+    assert report["by_typography_profile"]["standard_bold"]["ocr_strategy_counts"] == {"custom": 1}
+    assert report["by_layout_typography"]["classic_card|standard_bold"]["ocr_strategy_counts"] == {"custom": 1}
     assert report["ocr_strategy_counts"] == {"custom": 1}
     assert (output_dir / "summary.json").is_file()
     assert (output_dir / "samples.csv").is_file()
