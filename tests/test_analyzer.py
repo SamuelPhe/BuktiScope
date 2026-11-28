@@ -75,7 +75,7 @@ def test_identical_file_is_reported_as_session_duplicate():
 
 
 def test_expected_amount_mismatch_is_explained(monkeypatch):
-    monkeypatch.setattr(analyzer_module, "_run_ocr", lambda image: {
+    monkeypatch.setattr(analyzer_module, "_run_ocr", lambda image, psm=6: {
         "available": True, "language": "ind+eng", "text": "TRANSFER BERHASIL Rp 250.000",
         "confidence": 92.0,
     })
@@ -128,6 +128,32 @@ def test_ocr_fallback_uses_unsharp_only_when_primary_has_no_amount(monkeypatch):
     assert calls[1][1] == 6
     assert result["ocr_strategy"] == "unsharp_mask_psm6"
     assert _extract_amounts(result["text"]) == [250000]
+
+
+def test_ocr_fallback_retries_when_only_decoy_amount_is_found(monkeypatch):
+    source = Image.new("RGB", (320, 420), "white")
+    calls = []
+
+    def fake_ocr(image, psm=6):
+        calls.append(psm)
+        if psm == 11:
+            text = "TRANSFER AMOUNT Rp 250.000 BIAYA ADMIN Rp 2.500"
+        else:
+            text = "BIAYA ADMIN Rp 2.500 TOTAL DEBIT Rp 252.500"
+        return {
+            "available": True,
+            "language": "ind+eng",
+            "text": text,
+            "confidence": 92.0,
+            "words": [],
+        }
+
+    monkeypatch.setattr(analyzer_module, "_run_ocr", fake_ocr)
+    result = _run_ocr_with_fallback(source, expected_amount=250000)
+
+    assert calls == [6, 6, 11]
+    assert result["ocr_strategy"] == "grayscale_psm11"
+    assert 250000 in _extract_amounts(result["text"])
 
 
 def test_ocr_fallback_uses_sparse_text_mode_after_unsharp_fails(monkeypatch):
