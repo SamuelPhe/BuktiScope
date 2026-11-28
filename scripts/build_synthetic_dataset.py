@@ -256,6 +256,86 @@ def replace_field(
     return image, list(box)
 
 
+def make_small_amount_text(
+    original: Image.Image,
+    amount_text: str,
+    amount_box: tuple[int, int, int, int],
+) -> tuple[Image.Image, dict[str, Any]]:
+    """Render a deliberately small regular amount while keeping the receipt unchanged."""
+    image = original.copy()
+    draw = ImageDraw.Draw(image)
+    x0, y0, x1, y1 = amount_box
+    draw.rounded_rectangle(amount_box, radius=12, fill="#f1f4f8")
+    font_size = 20
+    font = load_font(font_size, False)
+    text_height = font.getbbox(amount_text)[3] - font.getbbox(amount_text)[1]
+    text_y = y0 + max(8, ((y1 - y0) - text_height) // 2)
+    draw.text((x0 + 30, text_y), amount_text, font=font, fill="#172943")
+    return image, {
+        "font_size": font_size,
+        "bold": False,
+        "fill": "#172943",
+        "amount_field_bbox_xyxy": list(amount_box),
+    }
+
+
+def make_low_contrast_amount(
+    original: Image.Image,
+    amount_text: str,
+    amount_box: tuple[int, int, int, int],
+    typography: dict[str, tuple[int, bool]],
+) -> tuple[Image.Image, dict[str, Any]]:
+    """Render the amount with reduced foreground/background contrast."""
+    image = original.copy()
+    draw = ImageDraw.Draw(image)
+    x0, y0, x1, y1 = amount_box
+    fill = "#a0a7b0"
+    draw.rounded_rectangle(amount_box, radius=12, fill="#f1f4f8")
+    draw.text(
+        (x0 + 30, y0 + 35),
+        amount_text,
+        font=load_font(*typography["amount"]),
+        fill=fill,
+    )
+    return image, {
+        "fill": fill,
+        "background": "#f1f4f8",
+        "typography": list(typography["amount"]),
+        "amount_field_bbox_xyxy": list(amount_box),
+    }
+
+
+def make_dense_amount_context(
+    original: Image.Image,
+    index: int,
+    amount: int,
+) -> tuple[Image.Image, dict[str, Any]]:
+    """Add small print with an admin fee and debit total as non-target amounts."""
+    image = original.copy()
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((110, 1080, 890, 1240), fill="white")
+
+    fee = 2_500
+    debit_total = amount + fee
+    small_font = load_font(15)
+    draw.text((125, 1088), f"REFERENCE: DEMO-{index:06d}", font=small_font, fill="#65748a")
+    draw.text((125, 1112), f"BIAYA ADMIN {format_amount(fee, 'rp_dot_space')}", font=small_font, fill="#65748a")
+    draw.text((125, 1136), f"TOTAL DEBIT {format_amount(debit_total, 'rp_dot_space')}", font=small_font, fill="#65748a")
+    draw.rounded_rectangle((125, 1162, 875, 1232), radius=10, fill="#fff4d9", outline="#ead8ac", width=2)
+    draw.text(
+        (160, 1185),
+        "SYNTHETIC DATA - NO PAYMENT OCCURRED",
+        font=load_font(18, True),
+        fill="#956b24",
+    )
+    return image, {
+        "decoy_amounts_idr": [fee, debit_total],
+        "decoy_labels": ["BIAYA ADMIN", "TOTAL DEBIT"],
+        "text_font_size": 15,
+        "target_amount_idr": amount,
+    }
+
+
 def make_benign_export(original: Image.Image) -> Image.Image:
     smaller = original.resize((850, 1105), Image.Resampling.LANCZOS)
     # An in-memory JPEG round-trip models ordinary sharing/export compression.
@@ -711,6 +791,31 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
         variants.append((
             "messenger_export", messenger, "synthetic_unmodified", "none", None,
             metadata["amount"], "messenger_jpeg_export", messenger_parameters,
+        ))
+
+        small_amount, small_amount_parameters = make_small_amount_text(
+            base, format_amount(metadata["amount"], amount_format_id), field_boxes["amount"]
+        )
+        variants.append((
+            "amount_small_font", small_amount, "synthetic_unmodified", "none", None,
+            metadata["amount"], "small_amount_font", small_amount_parameters,
+        ))
+
+        low_contrast, low_contrast_parameters = make_low_contrast_amount(
+            base, format_amount(metadata["amount"], amount_format_id),
+            field_boxes["amount"], typography,
+        )
+        variants.append((
+            "amount_low_contrast", low_contrast, "synthetic_unmodified", "none", None,
+            metadata["amount"], "low_contrast_amount", low_contrast_parameters,
+        ))
+
+        dense_context, dense_context_parameters = make_dense_amount_context(
+            base, index, metadata["amount"]
+        )
+        variants.append((
+            "dense_amount_context", dense_context, "synthetic_unmodified", "none", None,
+            metadata["amount"], "decoy_amount_context", dense_context_parameters,
         ))
 
         for (
