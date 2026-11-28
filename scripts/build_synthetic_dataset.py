@@ -85,6 +85,16 @@ LAYOUT_TYPOGRAPHY_PAIRS = (
 # are chosen so their layout and typography categories differ.
 AMOUNT_FORMAT_POSITION_INDEX = (0, 1, 2, 0, 3, 1, 4, 2, 3, 4)
 
+# Three perfect matchings of the 3×3 layout/profile grid. For five-source
+# diagnostic runs, each amount format maps across all three layouts/profiles.
+FIVE_SOURCE_PAIR_MATCHINGS = (
+    (0, 4, 5),
+    (1, 3, 8),
+    (2, 7, 6),
+    (0, 4, 5),
+    (1, 3, 8),
+)
+
 
 def load_font(size: int, bold: bool = False):
     candidates = [
@@ -555,9 +565,12 @@ def assign_source_factors(
         split_indices = source_indices[cursor:cursor + per_split]
         for position, index in enumerate(split_indices):
             split_by_index[index] = split
-            pair_index = (
-                position + split_position * 3
-            ) % len(LAYOUT_TYPOGRAPHY_PAIRS)
+            if per_split == len(FIVE_SOURCE_PAIR_MATCHINGS):
+                pair_index = FIVE_SOURCE_PAIR_MATCHINGS[position][split_position]
+            else:
+                pair_index = (
+                    position + split_position * 3
+                ) % len(LAYOUT_TYPOGRAPHY_PAIRS)
             layout_id, typography_id = LAYOUT_TYPOGRAPHY_PAIRS[pair_index]
             layout_by_index[index] = layout_id
             typography_by_index[index] = typography_id
