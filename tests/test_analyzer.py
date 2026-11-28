@@ -503,6 +503,14 @@ def test_amount_region_uses_nearby_label_above_the_amount_box():
     assert regions[1]["context_position"] == "same_line"
 
 
+def test_generic_transfer_heading_is_not_an_amount_label():
+    from app.analyzer import _classify_amount_line
+
+    assert _classify_amount_line("TRANSFER RECEIPT") == (
+        "unclassified", None
+    )
+
+
 def test_distant_amount_heading_is_not_associated_with_candidate():
     from app.analyzer import _locate_amount_regions
 
