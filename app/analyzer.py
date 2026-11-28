@@ -200,12 +200,19 @@ class Analyzer:
                 amount_match_basis = "ocr_candidates"
 
             amount_match = expected_value in comparison_amounts
+            expected_non_transfer_match = any(
+                region["amount_idr"] == expected_value
+                and region["amount_role"] in {
+                    "fee_labeled", "debit_total_labeled", "balance_labeled",
+                }
+                for region in amount_regions
+            )
             if not amount_match:
                 score += 25
                 detail = (
                     "Nominal pesanan hanya cocok dengan kandidat yang berlabel biaya, total debit, atau saldo; "
                     "kecocokan tersebut tidak dianggap sebagai nominal transfer. Periksa secara manual."
-                    if amount_match_basis == "non_transfer_labeled"
+                    if expected_non_transfer_match
                     else "Nominal yang diharapkan tidak ditemukan pada kandidat berlabel transfer atau hasil OCR yang tersedia. "
                     "OCR bisa salah membaca angka; periksa gambar dan data transaksi sebelum mengambil tindakan."
                 )
