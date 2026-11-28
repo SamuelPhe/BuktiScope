@@ -439,6 +439,68 @@ def test_locate_amount_regions_from_ocr_word_boxes(monkeypatch):
     assert regions[0]["height"] == 22
 
 
+def test_amount_regions_classify_transfer_fee_and_debit_total_labels():
+    from app.analyzer import _locate_amount_regions
+
+    text = (
+        "NOMINAL TRANSFER Rp 250.000 "
+        "BIAYA ADMIN Rp 2.500 "
+        "TOTAL DEBIT Rp 252.500"
+    )
+    tokens = [
+        ("NOMINAL", "line-1"), ("TRANSFER", "line-1"),
+        ("Rp", "line-1"), ("250.000", "line-1"),
+        ("BIAYA", "line-2"), ("ADMIN", "line-2"),
+        ("Rp", "line-2"), ("2.500", "line-2"),
+        ("TOTAL", "line-3"), ("DEBIT", "line-3"),
+        ("Rp", "line-3"), ("252.500", "line-3"),
+    ]
+    words = [
+        {
+            "text": token,
+            "x": index * 40,
+            "y": 100 + (int(line[-1]) - 1) * 30,
+            "width": 35,
+            "height": 18,
+            "line_key": line,
+        }
+        for index, (token, line) in enumerate(tokens)
+    ]
+
+    regions = _locate_amount_regions(text, words)
+
+    assert [item["amount_idr"] for item in regions] == [250000, 2500, 252500]
+    assert [item["amount_role"] for item in regions] == [
+        "transfer_labeled", "fee_labeled", "debit_total_labeled",
+    ]
+    assert [item["context_label"] for item in regions] == [
+        "NOMINAL TRANSFER", "BIAYA ADMIN", "TOTAL DEBIT",
+    ]
+
+
+def test_amount_regions_stay_unclassified_without_same_line_label():
+    from app.analyzer import _locate_amount_regions
+
+    regions = _locate_amount_regions(
+        "Rp 250.000",
+        [
+            {"text": "Rp", "x": 10, "y": 10, "width": 20, "height": 18},
+            {"text": "250.000", "x": 35, "y": 10, "width": 70, "height": 18},
+        ],
+    )
+
+    assert regions[0]["amount_role"] == "unclassified"
+    assert regions[0]["context_label"] is None
+
+
+def test_fee_label_takes_priority_over_transfer_word():
+    from app.analyzer import _classify_amount_line
+
+    assert _classify_amount_line("BIAYA TRANSFER Rp 2.500") == (
+        "fee_labeled", "BIAYA TRANSFER"
+    )
+
+
 def test_analyzer_returns_ocr_overlay_for_detected_amount(monkeypatch):
     monkeypatch.setattr(analyzer_module, "_run_ocr", lambda image: {
         "available": True,
