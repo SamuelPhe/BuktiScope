@@ -468,6 +468,14 @@ def _run_ocr_with_fallback(
         sparse_result["ocr_strategy"] = "grayscale_psm11"
         return sparse_result
 
+    # Stretch a narrow grayscale range to recover faint text without adding
+    # an image-processing dependency or changing the original upload.
+    contrasted = ImageOps.autocontrast(ImageOps.grayscale(image), cutoff=1)
+    contrasted_result = _run_ocr(contrasted)
+    if contrasted_result.get("available") and target_found(contrasted_result):
+        contrasted_result["ocr_strategy"] = "autocontrast_psm6"
+        return contrasted_result
+
     return primary
 
 
