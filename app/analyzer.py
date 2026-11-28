@@ -429,6 +429,58 @@ def _run_ocr(image: Image.Image, psm: int = 6) -> dict[str, Any]:
         return {"available": True, "language": selected, "text": "", "confidence": None, "words": []}
 
 
+def _transfer_label_roi_box(
+    image: Image.Image,
+    words: list[dict[str, Any]],
+) -> tuple[int, int, int, int] | None:
+    """Find the amount area directly below an explicitly recognized transfer label."""
+    line_groups: dict[str, list[dict[str, Any]]] = {}
+    for word in words:
+        line_key = word.get("line_key")
+        token = str(word.get("text") or "").strip()
+        if line_key is not None and token:
+            line_groups.setdefault(str(line_key), []).append(word)
+
+    for line_words in line_groups.values():
+        line_text = " ".join(str(word.get("text") or "") for word in line_words)
+        role, _ = _classify_amount_line(line_text)
+        if role != "transfer_labeled":
+            continue
+
+        label_x0 = min(int(word["x"]) for word in line_words)
+        label_y0 = min(int(word["y"]) for word in line_words)
+        label_y1 = max(
+            int(word["y"]) + int(word["height"]) for word in line_words
+        )
+        left = max(0, label_x0 - 35)
+        top = max(0, label_y0 - 12)
+        right = min(image.width, left + max(200, int(image.width * 0.8)))
+        bottom = min(image.height, label_y1 + 180)
+        if right - left >= 120 and bottom - top >= 80:
+            return left, top, right, bottom
+    return None
+
+
+def _map_roi_words_to_image(
+    words: list[dict[str, Any]],
+    roi_box: tuple[int, int, int, int],
+    scale: int,
+) -> list[dict[str, Any]]:
+    """Map OCR boxes from an enlarged crop back to the original image."""
+    left, top, _, _ = roi_box
+    mapped_words = []
+    for word in words:
+        mapped = dict(word)
+        for key, offset in (("x", left), ("y", top)):
+            mapped[key] = offset + round(int(word[key]) / scale)
+        for key in ("width", "height"):
+            mapped[key] = max(1, round(int(word[key]) / scale))
+        if mapped.get("line_key") is not None:
+            mapped["line_key"] = f"roi:{mapped['line_key']}"
+        mapped_words.append(mapped)
+    return mapped_words
+
+
 def _run_ocr_with_fallback(
     image: Image.Image,
     expected_amount: int | None = None,
@@ -450,6 +502,33 @@ def _run_ocr_with_fallback(
     primary["ocr_strategy"] = "grayscale_psm6"
     if not primary.get("available") or target_found(primary):
         return primary
+
+    # If the amount is faint but its explicit transfer label was read, OCR only
+    # the nearby amount panel at 2x size instead of transforming the full page.
+    roi_box = _transfer_label_roi_box(image, primary.get("words", []))
+    if roi_box:
+        roi_scale = 2
+        crop = image.crop(roi_box)
+        crop = crop.resize(
+            (crop.width * roi_scale, crop.height * roi_scale),
+            Image.Resampling.LANCZOS,
+        )
+        roi_result = _run_ocr(crop)
+        if roi_result.get("available") and target_found(roi_result):
+            combined = dict(primary)
+            primary_text = str(primary.get("text") or "").strip()
+            roi_text = str(roi_result.get("text") or "").strip()
+            combined["text"] = " ".join(part for part in (primary_text, roi_text) if part)
+            combined["words"] = (
+                list(primary.get("words") or [])
+                + _map_roi_words_to_image(
+                    roi_result.get("words", []), roi_box, roi_scale
+                )
+            )
+            combined["confidence"] = roi_result.get("confidence")
+            combined["language"] = roi_result.get("language") or primary.get("language")
+            combined["ocr_strategy"] = "transfer_label_roi_psm6"
+            return combined
 
     # Sharpening is a targeted fallback for mild blur; keep the original image
     # as the first choice so already-readable receipts are not degraded.
