@@ -545,7 +545,10 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
             split_by_index[index] = split
             layout_by_index[index] = layout_names[(position + split_position) % len(layout_names)]
             amount_format_by_index[index] = amount_format_names[position % len(amount_format_names)]
-            typography_by_index[index] = typography_names[(position + split_position) % len(typography_names)]
+            # Use a different cycle so typography is not confounded with layout.
+            typography_by_index[index] = typography_names[
+                (2 * position + split_position) % len(typography_names)
+            ]
         cursor += per_split
 
     rows: list[dict[str, Any]] = []
@@ -741,6 +744,14 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
         },
         "typography_profile_counts": {
             profile: sum(1 for row in rows if row["typography_profile_id"] == profile)
+            for profile in TYPOGRAPHY_PROFILES
+        },
+        "layout_typography_counts": {
+            f"{layout}|{profile}": sum(
+                1 for row in rows
+                if row["layout_id"] == layout and row["typography_profile_id"] == profile
+            )
+            for layout in LAYOUTS
             for profile in TYPOGRAPHY_PROFILES
         },
         "seed": seed,

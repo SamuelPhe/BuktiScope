@@ -144,6 +144,16 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def summarize_with_strategies(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Attach OCR fallback usage to a group's reading metrics."""
+    summary = summarize(records)
+    summary["ocr_strategy_counts"] = {
+        strategy: sum(1 for record in records if record["ocr_strategy"] == strategy)
+        for strategy in sorted({record["ocr_strategy"] for record in records})
+    }
+    return summary
+
+
 def evaluate_manifest(
     manifest_path: Path,
     split: str,
@@ -198,11 +208,14 @@ def evaluate_manifest(
     by_layout: dict[str, list[dict[str, Any]]] = defaultdict(list)
     by_amount_format: dict[str, list[dict[str, Any]]] = defaultdict(list)
     by_typography: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    by_layout_typography: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in records:
         grouped[record["variant"]].append(record)
         by_layout[record["layout_id"]].append(record)
         by_amount_format[record["amount_format_id"]].append(record)
         by_typography[record["typography_profile_id"]].append(record)
+        pair = f"{record['layout_id']}|{record['typography_profile_id']}"
+        by_layout_typography[pair].append(record)
 
     report = {
         "benchmark": "BuktiScope synthetic OCR amount-reading baseline",
@@ -215,20 +228,24 @@ def evaluate_manifest(
             for strategy in sorted({record["ocr_strategy"] for record in records})
         },
         "by_variant": {
-            variant: summarize(grouped[variant])
+            variant: summarize_with_strategies(grouped[variant])
             for variant in sorted(grouped)
         },
         "by_layout": {
-            layout: summarize(by_layout[layout])
+            layout: summarize_with_strategies(by_layout[layout])
             for layout in sorted(by_layout)
         },
         "by_amount_format": {
-            format_id: summarize(by_amount_format[format_id])
+            format_id: summarize_with_strategies(by_amount_format[format_id])
             for format_id in sorted(by_amount_format)
         },
         "by_typography_profile": {
-            profile: summarize(by_typography[profile])
+            profile: summarize_with_strategies(by_typography[profile])
             for profile in sorted(by_typography)
+        },
+        "by_layout_typography": {
+            pair: summarize_with_strategies(by_layout_typography[pair])
+            for pair in sorted(by_layout_typography)
         },
         "limitations": LIMITATIONS,
     }

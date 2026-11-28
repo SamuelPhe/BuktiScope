@@ -21,7 +21,7 @@ Each source receipt is assigned to one of three fictional layout families. All v
 
 The builder balances source receipts across layout families within each train, validation, and test split. The manifest records `layout_id` so OCR performance can be compared by layout.
 
-The builder also varies five amount formats (`Rp 250.000`, `Rp250.000`, `Rp 250.000,00`, `IDR 250,000`, and `Rp 250000`) and three typography profiles (standard bold, compact bold, and large regular). Each source receipt keeps one amount format and typography profile across its 15 image variants. This keeps the experiment grouped and reproducible.
+The builder also varies five amount formats (`Rp 250.000`, `Rp250.000`, `Rp 250.000,00`, `IDR 250,000`, and `Rp 250000`) and three typography profiles (standard bold, compact bold, and large regular). Each source receipt keeps one amount format and typography profile across its 15 image variants. Layout and typography assignment cycles are independent so that their OCR effects are not perfectly confounded. The dataset card records the layout/typography cross-counts.
 
 ## Build
 
