@@ -370,7 +370,15 @@ def _run_ocr_with_fallback(
     """Retry OCR when the supplied target amount is missing, not just when all amounts are."""
     def target_found(result: dict[str, Any]) -> bool:
         amounts = _extract_amounts(str(result.get("text") or ""))
-        return int(expected_amount) in amounts if expected_amount is not None else bool(amounts)
+        if expected_amount is None:
+            return bool(amounts)
+        if int(expected_amount) not in amounts:
+            return False
+        try:
+            confidence = float(result.get("confidence") or 0)
+        except (TypeError, ValueError):
+            return False
+        return 40 <= confidence <= 100
 
     primary = _run_ocr(image)
     primary["ocr_strategy"] = "grayscale_psm6"
