@@ -120,6 +120,13 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
     )
     no_amount_count = sample_count - detected_count
     unexpected_count = sum(int(item["unexpected_amount_count"]) for item in records)
+    unexpected_sample_count = sum(
+        int(item["unexpected_amount_count"]) > 0 for item in records
+    )
+    total_candidate_count = sum(
+        int(item.get("amount_candidate_count", len(item.get("extracted_amounts_idr", []))))
+        for item in records
+    )
     confidence_values = [
         float(item["confidence"])
         for item in records
@@ -134,6 +141,10 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
         "wrong_amount_only_samples": wrong_only_count,
         "samples_with_no_amount_detected": no_amount_count,
         "unexpected_amount_candidates": unexpected_count,
+        "samples_with_unexpected_amount_candidates": unexpected_sample_count,
+        "unexpected_candidate_sample_rate": _rate(unexpected_sample_count, sample_count),
+        "total_amount_candidates": total_candidate_count,
+        "expected_amount_candidate_precision": _rate(exact_count, total_candidate_count),
         "exact_amount_match_rate": _rate(exact_count, sample_count),
         "amount_read_coverage_rate": _rate(detected_count, sample_count),
         "exact_match_rate_when_amount_detected": _rate(exact_count, detected_count),
@@ -199,6 +210,7 @@ def evaluate_manifest(
             "amount_detected": bool(extracted),
             "exact_amount_match": exact_match,
             "unexpected_amount_count": sum(amount != expected for amount in extracted),
+            "amount_candidate_count": len(extracted),
             "ocr_available": bool(ocr_result.get("available")),
             "ocr_strategy": str(ocr_result.get("ocr_strategy") or "custom"),
             "confidence": confidence_value,
@@ -259,7 +271,8 @@ def evaluate_manifest(
         "sample_id", "split", "variant", "layout_id", "amount_format_id",
         "typography_profile_id", "expected_visible_amount_idr",
         "extracted_amounts_idr", "amount_detected", "exact_amount_match",
-        "unexpected_amount_count", "ocr_available", "ocr_strategy", "confidence",
+        "unexpected_amount_count", "amount_candidate_count",
+        "ocr_available", "ocr_strategy", "confidence",
     ]
     with (output_dir / "samples.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=sample_fields)
