@@ -20,15 +20,15 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
     output = tmp_path / "synthetic-data"
     summary = build_dataset(output, per_split=1, seed=7)
 
-    assert summary["sample_count"] == 45
+    assert summary["sample_count"] == 54
     assert summary["source_receipts"] == 3
-    assert summary["split_counts"] == {"train": 15, "validation": 15, "test": 15}
-    assert summary["class_counts"] == {"synthetic_unmodified": 36, "synthetic_edited": 9}
+    assert summary["split_counts"] == {"train": 18, "validation": 18, "test": 18}
+    assert summary["class_counts"] == {"synthetic_unmodified": 45, "synthetic_edited": 9}
     assert summary["synthetic_only"] is True
 
     with (output / "manifest.csv").open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
-    assert len(rows) == 45
+    assert len(rows) == 54
 
     source_splits = {}
     source_variants = {}
@@ -66,13 +66,13 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
 
     assert all(len(splits) == 1 for splits in source_splits.values())
     assert len(source_splits) == 3
-    assert all(len(variants) == 15 for variants in source_variants.values())
+    assert all(len(variants) == 18 for variants in source_variants.values())
     assert all(len(layouts) == 1 for layouts in source_layouts.values())
-    assert summary["variants_per_source_receipt"] == 15
-    assert summary["layout_counts"] == {layout: 15 for layout in LAYOUTS}
-    assert sum(summary["layout_counts_by_split"]["train"].values()) == 15
-    assert sum(summary["layout_counts_by_split"]["validation"].values()) == 15
-    assert sum(summary["layout_counts_by_split"]["test"].values()) == 15
+    assert summary["variants_per_source_receipt"] == 18
+    assert summary["layout_counts"] == {layout: 18 for layout in LAYOUTS}
+    assert sum(summary["layout_counts_by_split"]["train"].values()) == 18
+    assert sum(summary["layout_counts_by_split"]["validation"].values()) == 18
+    assert sum(summary["layout_counts_by_split"]["test"].values()) == 18
     assert (output / "manifest.jsonl").is_file()
     assert (output / "DATASET_CARD.json").is_file()
 
@@ -87,10 +87,16 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
         "camera_noise",
         "edge_shadow",
         "messenger_export",
+        "amount_small_font",
+        "amount_low_contrast",
+        "dense_amount_context",
     }
     assert expected_quality_variants.issubset({row["variant"] for row in rows})
     assert summary["variant_counts"]["clean"] == 3
     assert summary["variant_counts"]["perspective_warp"] == 3
+    assert summary["variant_counts"]["amount_small_font"] == 3
+    assert summary["variant_counts"]["amount_low_contrast"] == 3
+    assert summary["variant_counts"]["dense_amount_context"] == 3
     for row in rows:
         parameters = json.loads(row["transform_parameters_json"])
         assert isinstance(parameters, dict)
@@ -124,18 +130,32 @@ def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
         elif row["variant"] == "messenger_export":
             assert parameters["intermediate_size"] == [720, 936]
             assert parameters["jpeg_quality"] == 52
+        elif row["variant"] == "amount_small_font":
+            assert parameters["font_size"] == 20
+            assert parameters["bold"] is False
+            assert parameters["amount_field_bbox_xyxy"] == list(
+                LAYOUTS[row["layout_id"]]["fields"]["amount"]
+            )
+        elif row["variant"] == "amount_low_contrast":
+            assert parameters["fill"] == "#a0a7b0"
+            assert parameters["background"] == "#f1f4f8"
+        elif row["variant"] == "dense_amount_context":
+            assert parameters["decoy_amounts_idr"] == [
+                2500, int(row["expected_amount_idr"]) + 2500
+            ]
+            assert len(parameters["decoy_labels"]) == 2
 
 
 def test_synthetic_dataset_balances_amount_formats_and_typography(tmp_path):
     output = tmp_path / "format-profile-data"
     summary = build_dataset(output, per_split=5, seed=19)
 
-    assert summary["sample_count"] == 225
+    assert summary["sample_count"] == 270
     assert summary["amount_format_counts"] == {
-        format_id: 45 for format_id in AMOUNT_FORMATS
+        format_id: 54 for format_id in AMOUNT_FORMATS
     }
     assert summary["typography_profile_counts"] == {
-        profile: 75 for profile in TYPOGRAPHY_PROFILES
+        profile: 90 for profile in TYPOGRAPHY_PROFILES
     }
 
     with (output / "manifest.csv").open(encoding="utf-8", newline="") as handle:

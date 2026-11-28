@@ -10,9 +10,9 @@ from scripts.evaluate_ocr import evaluate_manifest, load_manifest, summarize
 
 def test_summarize_reports_coverage_and_exact_amount_recognition():
     records = [
-        {"amount_detected": True, "exact_amount_match": True, "unexpected_amount_count": 0, "confidence": 90},
-        {"amount_detected": True, "exact_amount_match": False, "unexpected_amount_count": 1, "confidence": 80},
-        {"amount_detected": False, "exact_amount_match": False, "unexpected_amount_count": 0, "confidence": None},
+        {"amount_detected": True, "exact_amount_match": True, "unexpected_amount_count": 0, "amount_candidate_count": 1, "confidence": 90},
+        {"amount_detected": True, "exact_amount_match": False, "unexpected_amount_count": 1, "amount_candidate_count": 1, "confidence": 80},
+        {"amount_detected": False, "exact_amount_match": False, "unexpected_amount_count": 0, "amount_candidate_count": 0, "confidence": None},
     ]
 
     metrics = summarize(records)
@@ -23,6 +23,10 @@ def test_summarize_reports_coverage_and_exact_amount_recognition():
     assert metrics["wrong_amount_only_samples"] == 1
     assert metrics["samples_with_no_amount_detected"] == 1
     assert metrics["unexpected_amount_candidates"] == 1
+    assert metrics["samples_with_unexpected_amount_candidates"] == 1
+    assert metrics["unexpected_candidate_sample_rate"] == 0.3333
+    assert metrics["total_amount_candidates"] == 2
+    assert metrics["expected_amount_candidate_precision"] == 0.5
     assert metrics["exact_amount_match_rate"] == 0.3333
     assert metrics["amount_read_coverage_rate"] == 0.6667
     assert metrics["exact_match_rate_when_amount_detected"] == 0.5
@@ -70,6 +74,8 @@ def test_evaluate_manifest_writes_minimized_reports(tmp_path):
     assert report["scope"] == "synthetic_only"
     assert report["metrics"]["sample_count"] == 1
     assert report["metrics"]["exact_visible_amount_matches"] == 1
+    assert report["metrics"]["total_amount_candidates"] == 1
+    assert report["metrics"]["expected_amount_candidate_precision"] == 1.0
     assert report["metrics"]["exact_amount_match_rate"] == 1.0
     assert report["by_variant"]["clean"]["amount_read_coverage_rate"] == 1.0
     assert report["by_layout"]["classic_card"]["sample_count"] == 1
@@ -90,10 +96,41 @@ def test_evaluate_manifest_writes_minimized_reports(tmp_path):
     with (output_dir / "samples.csv").open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
     assert rows[0]["extracted_amounts_idr"] == "[250000]"
+    assert rows[0]["amount_candidate_count"] == "1"
     assert rows[0]["ocr_strategy"] == "custom"
     assert rows[0]["layout_id"] == "classic_card"
     assert rows[0]["amount_format_id"] == "rp_dot_space"
     assert rows[0]["typography_profile_id"] == "standard_bold"
+
+
+def test_evaluate_manifest_reports_decoy_amount_candidates(tmp_path):
+    manifest = _make_manifest(tmp_path)
+    output_dir = tmp_path / "dense-reports"
+
+    def fake_ocr(_image):
+        return {
+            "available": True,
+            "text": (
+                "TRANSFER AMOUNT Rp 250.000 "
+                "BIAYA ADMIN Rp 2.500 "
+                "TOTAL DEBIT Rp 252.500"
+            ),
+            "confidence": 92.0,
+        }
+
+    report = evaluate_manifest(
+        manifest, split="test", output_dir=output_dir, ocr_runner=fake_ocr,
+    )
+
+    assert report["metrics"]["exact_visible_amount_matches"] == 1
+    assert report["metrics"]["unexpected_amount_candidates"] == 2
+    assert report["metrics"]["samples_with_unexpected_amount_candidates"] == 1
+    assert report["metrics"]["total_amount_candidates"] == 3
+    assert report["metrics"]["expected_amount_candidate_precision"] == 0.3333
+    with (output_dir / "samples.csv").open(encoding="utf-8", newline="") as handle:
+        row = next(csv.DictReader(handle))
+    assert row["amount_candidate_count"] == "3"
+    assert row["extracted_amounts_idr"] == "[250000, 2500, 252500]"
 
 
 def test_manifest_rejects_non_synthetic_rows(tmp_path):

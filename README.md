@@ -95,13 +95,13 @@ GitHub Actions runs the test suite on Python 3.11 and 3.12 for pushes and pull r
 
 ## Build a labeled synthetic dataset
 
-Generate grouped train/validation/test fixtures (default: 450 images):
+Generate grouped train/validation/test fixtures (default: 540 images):
 
 ```bash
 python scripts/build_synthetic_dataset.py --output data/synthetic --per-split 10 --seed 20261127
 ```
 
-The builder creates three fictional receipt layout families, five amount formats, and three typography profiles, then clean and benign-export images, ten additional quality/capture variants, and simple edited amount/recipient/date variants. Source receipt groups never cross splits. Every fixture says synthetic/no payment occurred; the data card documents limitations. Generated files under `data/synthetic/` are git-ignored. You can also generate and download the dataset from GitHub Actions → Build synthetic dataset. The workflow caps each split at 100 source receipts. See [docs/DATASET.md](docs/DATASET.md).
+The builder creates three fictional receipt layout families, five amount formats, and three typography profiles, then clean and benign-export images, thirteen additional quality/capture variants (including small-font, low-contrast, and dense monetary context), and simple edited amount/recipient/date variants. Source receipt groups never cross splits. Every fixture says synthetic/no payment occurred; the data card documents limitations. Generated files under `data/synthetic/` are git-ignored. You can also generate and download the dataset from GitHub Actions → Build synthetic dataset. The workflow caps each split at 100 source receipts. See [docs/DATASET.md](docs/DATASET.md).
 
 ## Evaluate OCR on synthetic data
 
@@ -111,7 +111,7 @@ A reproducible benchmark measures whether Tesseract reads the visible Rupiah amo
 python -m scripts.evaluate_ocr --manifest data/synthetic/manifest.csv --split test --output-dir data/ocr-benchmark
 ```
 
-The report contains exact visible-amount match rate, amount-read coverage, confidence summaries, breakdowns by variant/layout/amount format/typography, and OCR strategy counts for each group. It does not measure fraud-detection accuracy or payment authenticity. The benchmark accepts only rows marked `synthetic_only=true`, and it does not include raw OCR text in its output. See [docs/OCR_BENCHMARK.md](docs/OCR_BENCHMARK.md). A GitHub Actions workflow can generate the dataset, run the benchmark, and upload the report artifact.
+The report contains exact visible-amount match rate, amount-read coverage, expected-amount candidate precision, confidence summaries, breakdowns by variant/layout/amount format/typography, and OCR strategy counts for each group. It does not measure fraud-detection accuracy or payment authenticity. The benchmark accepts only rows marked `synthetic_only=true`, and it does not include raw OCR text in its output. See [docs/OCR_BENCHMARK.md](docs/OCR_BENCHMARK.md). A GitHub Actions workflow can generate the dataset, run the benchmark, and upload the report artifact.
 
 
 ## Generate synthetic demo images
