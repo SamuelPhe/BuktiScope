@@ -333,6 +333,7 @@ def evaluate_manifest(
         "extracted_amounts_idr", "amount_detected", "exact_amount_match",
         "unexpected_amount_count", "amount_candidate_count", "amount_role_counts",
         "transfer_labeled_amounts_idr", "expected_in_transfer_label",
+        "expected_transfer_labeled_candidate_count",
         "ocr_available", "ocr_strategy", "confidence",
     ]
     with (output_dir / "samples.csv").open("w", newline="", encoding="utf-8") as handle:
