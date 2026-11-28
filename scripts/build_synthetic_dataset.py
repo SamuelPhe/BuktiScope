@@ -538,6 +538,41 @@ def make_perspective_warp(
     return warped, inset
 
 
+def assign_source_factors(
+    source_indices: list[int],
+    per_split: int,
+    split_names: tuple[str, ...] = ("train", "validation", "test"),
+) -> tuple[dict[int, str], dict[int, str], dict[int, str], dict[int, str]]:
+    """Assign independent, deterministic layout, amount-format, and typography factors."""
+    split_by_index: dict[int, str] = {}
+    layout_by_index: dict[int, str] = {}
+    amount_format_by_index: dict[int, str] = {}
+    typography_by_index: dict[int, str] = {}
+    amount_format_names = tuple(AMOUNT_FORMATS)
+    cursor = 0
+
+    for split_position, split in enumerate(split_names):
+        split_indices = source_indices[cursor:cursor + per_split]
+        for position, index in enumerate(split_indices):
+            split_by_index[index] = split
+            pair_index = (
+                position + split_position * 3
+            ) % len(LAYOUT_TYPOGRAPHY_PAIRS)
+            layout_id, typography_id = LAYOUT_TYPOGRAPHY_PAIRS[pair_index]
+            layout_by_index[index] = layout_id
+            typography_by_index[index] = typography_id
+
+            format_index = (
+                AMOUNT_FORMAT_POSITION_INDEX[position]
+                if per_split == len(AMOUNT_FORMAT_POSITION_INDEX)
+                else position % len(amount_format_names)
+            )
+            amount_format_by_index[index] = amount_format_names[format_index]
+        cursor += per_split
+
+    return split_by_index, layout_by_index, amount_format_by_index, typography_by_index
+
+
 def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> dict[str, Any]:
     if per_split < 1 or per_split > 100:
         raise ValueError("per_split must be between 1 and 100")
@@ -548,27 +583,12 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
     split_names = ("train", "validation", "test")
     source_indices = list(range(1, per_split * len(split_names) + 1))
     rng.shuffle(source_indices)
-    split_by_index: dict[int, str] = {}
-    layout_by_index: dict[int, str] = {}
-    amount_format_by_index: dict[int, str] = {}
-    typography_by_index: dict[int, str] = {}
-    amount_format_names = tuple(AMOUNT_FORMATS)
-    cursor = 0
-    for split_position, split in enumerate(split_names):
-        split_indices = source_indices[cursor:cursor + per_split]
-        for position, index in enumerate(split_indices):
-            split_by_index[index] = split
-            pair_index = (position + split_position * 3) % len(LAYOUT_TYPOGRAPHY_PAIRS)
-            layout_id, typography_id = LAYOUT_TYPOGRAPHY_PAIRS[pair_index]
-            layout_by_index[index] = layout_id
-            typography_by_index[index] = typography_id
-
-            if per_split == len(AMOUNT_FORMAT_POSITION_INDEX):
-                format_index = AMOUNT_FORMAT_POSITION_INDEX[position]
-            else:
-                format_index = position % len(amount_format_names)
-            amount_format_by_index[index] = amount_format_names[format_index]
-        cursor += per_split
+    (
+        split_by_index,
+        layout_by_index,
+        amount_format_by_index,
+        typography_by_index,
+    ) = assign_source_factors(source_indices, per_split, split_names)
 
     rows: list[dict[str, Any]] = []
     for index in sorted(source_indices):
