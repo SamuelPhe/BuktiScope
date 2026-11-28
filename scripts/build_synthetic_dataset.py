@@ -68,6 +68,23 @@ TYPOGRAPHY_PROFILES = {
     "large_regular": {"amount": (48, False), "recipient": (27, False), "date": (25, False)},
 }
 
+# A fixed order creates a crossed layout × typography design in every 10-source split.
+LAYOUT_TYPOGRAPHY_PAIRS = (
+    ("classic_card", "standard_bold"),
+    ("classic_card", "compact_bold"),
+    ("classic_card", "large_regular"),
+    ("compact_mobile", "large_regular"),
+    ("compact_mobile", "compact_bold"),
+    ("itemized_slip", "large_regular"),
+    ("itemized_slip", "compact_bold"),
+    ("compact_mobile", "standard_bold"),
+    ("itemized_slip", "standard_bold"),
+)
+
+# With ten sources per split, every format appears twice. The paired positions
+# are chosen so their layout and typography categories differ.
+AMOUNT_FORMAT_POSITION_INDEX = (0, 1, 2, 0, 3, 1, 4, 2, 3, 4)
+
 
 def load_font(size: int, bold: bool = False):
     candidates = [
@@ -535,20 +552,22 @@ def build_dataset(output: Path, per_split: int = 10, seed: int = 20261127) -> di
     layout_by_index: dict[int, str] = {}
     amount_format_by_index: dict[int, str] = {}
     typography_by_index: dict[int, str] = {}
-    layout_names = tuple(LAYOUTS)
     amount_format_names = tuple(AMOUNT_FORMATS)
-    typography_names = tuple(TYPOGRAPHY_PROFILES)
     cursor = 0
     for split_position, split in enumerate(split_names):
         split_indices = source_indices[cursor:cursor + per_split]
         for position, index in enumerate(split_indices):
             split_by_index[index] = split
-            layout_by_index[index] = layout_names[(position + split_position) % len(layout_names)]
-            amount_format_by_index[index] = amount_format_names[position % len(amount_format_names)]
-            # Use a different cycle so typography is not confounded with layout.
-            typography_by_index[index] = typography_names[
-                (2 * position + split_position) % len(typography_names)
-            ]
+            pair_index = (position + split_position * 3) % len(LAYOUT_TYPOGRAPHY_PAIRS)
+            layout_id, typography_id = LAYOUT_TYPOGRAPHY_PAIRS[pair_index]
+            layout_by_index[index] = layout_id
+            typography_by_index[index] = typography_id
+
+            if per_split == len(AMOUNT_FORMAT_POSITION_INDEX):
+                format_index = AMOUNT_FORMAT_POSITION_INDEX[position]
+            else:
+                format_index = position % len(amount_format_names)
+            amount_format_by_index[index] = amount_format_names[format_index]
         cursor += per_split
 
     rows: list[dict[str, Any]] = []
