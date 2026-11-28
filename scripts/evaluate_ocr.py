@@ -134,8 +134,8 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
         for item in records
     )
     role_names = (
-        "transfer_labeled", "fee_labeled", "debit_total_labeled",
-        "balance_labeled", "unclassified",
+        "transfer_labeled", "amount_labeled", "fee_labeled",
+        "debit_total_labeled", "balance_labeled", "unclassified",
     )
     amount_role_counts = {
         role: sum(int(item.get("amount_role_counts", {}).get(role, 0)) for item in records)
@@ -233,8 +233,8 @@ def evaluate_manifest(
         amount_role_counts = {
             role: sum(1 for region in amount_regions if region["amount_role"] == role)
             for role in (
-                "transfer_labeled", "fee_labeled", "debit_total_labeled",
-                "balance_labeled", "unclassified",
+                "transfer_labeled", "amount_labeled", "fee_labeled",
+                "debit_total_labeled", "balance_labeled", "unclassified",
             )
         }
         exact_match = expected in extracted
