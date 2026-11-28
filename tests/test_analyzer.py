@@ -604,3 +604,5 @@ def test_tesseract_word_coordinates_scale_back_to_original_image(monkeypatch):
     assert result["words"][0]["y"] == 26
     assert result["words"][0]["width"] == 133
     assert result["words"][0]["height"] == 33
+    assert result["words"][0]["line_key"] == "1:1:1"
+    assert result["words"][1]["line_key"] == "1:1:1"
