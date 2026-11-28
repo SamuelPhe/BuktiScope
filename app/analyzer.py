@@ -148,8 +148,8 @@ class Analyzer:
         amount_role_counts = {
             role: sum(1 for region in amount_regions if region["amount_role"] == role)
             for role in (
-                "transfer_labeled", "fee_labeled", "debit_total_labeled",
-                "balance_labeled", "unclassified",
+                "transfer_labeled", "amount_labeled", "fee_labeled",
+                "debit_total_labeled", "balance_labeled", "unclassified",
             )
         }
         ocr_overlay = _ocr_overlay(image, amount_regions)
@@ -469,8 +469,9 @@ def _classify_amount_line(line_text: str) -> tuple[str, str | None]:
         ("balance_labeled", ("SALDO", "BALANCE")),
         ("transfer_labeled", (
             "NOMINAL TRANSFER", "JUMLAH TRANSFER", "TRANSFER AMOUNT",
-            "AMOUNT TRANSFER", "TOTAL TRANSFER", "TRANSFER", "NOMINAL",
+            "AMOUNT TRANSFER", "TOTAL TRANSFER", "TRANSFER",
         )),
+        ("amount_labeled", ("NOMINAL", "AMOUNT", "JUMLAH")),
     )
     padded = f" {normalized} "
     for role, phrases in labels:
