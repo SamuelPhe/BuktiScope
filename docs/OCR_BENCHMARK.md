@@ -32,7 +32,7 @@ The API reports the selected method as `ocr_strategy`. Benchmark output includes
 - **Unexpected amount candidates:** extracted amount values that differ from the expected visible amount.
 - **Mean OCR confidence:** average Tesseract confidence when the engine returned a numeric value. This is not a calibrated probability of correctness.
 
-The report includes aggregate metrics, per-variant and per-layout breakdowns, breakdowns by amount format and typography profile, and layout/typography cross-groups. Each grouped section also reports how often each OCR strategy was used. The manifest's `visible_amount_idr` is the target because the benchmark asks what OCR can read in the image as it exists, including deliberately edited variants.
+The report includes aggregate metrics, per-variant and per-layout breakdowns, breakdowns by amount format and typography profile, and all nine layout/typography cross-groups in each default split. Each grouped section also reports how often each OCR strategy was used. The manifest's `visible_amount_idr` is the target because the benchmark asks what OCR can read in the image as it exists, including deliberately edited variants.
 
 ## Output and privacy
 

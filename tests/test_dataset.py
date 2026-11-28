@@ -6,7 +6,14 @@ from pathlib import Path
 
 from PIL import Image
 
-from scripts.build_synthetic_dataset import AMOUNT_FORMATS, LAYOUTS, TYPOGRAPHY_PROFILES, build_dataset
+from scripts.build_synthetic_dataset import (
+    AMOUNT_FORMATS,
+    LAYOUTS,
+    LAYOUT_TYPOGRAPHY_PAIRS,
+    TYPOGRAPHY_PROFILES,
+    assign_source_factors,
+    build_dataset,
+)
 
 
 def test_synthetic_dataset_builder_creates_grouped_splits(tmp_path):
@@ -161,7 +168,7 @@ def test_synthetic_dataset_balances_amount_formats_and_typography(tmp_path):
     assert all(count > 0 for count in summary["layout_typography_counts"].values())
     assert sum(summary["layout_typography_counts"].values()) == summary["sample_count"]
 
-    # Each amount format is crossed with every layout and typography profile.
+    # Each amount format is represented across every layout and typography profile.
     assert {
         (row["amount_format_id"], row["layout_id"])
         for row in source_rows
@@ -178,6 +185,34 @@ def test_synthetic_dataset_balances_amount_formats_and_typography(tmp_path):
         for format_id in AMOUNT_FORMATS
         for profile in TYPOGRAPHY_PROFILES
     }
+
+
+
+def test_default_source_factor_assignment_is_fully_crossed_per_split():
+    source_indices = list(range(1, 31))
+    split_by_index, layout_by_index, format_by_index, typography_by_index = (
+        assign_source_factors(source_indices, per_split=10)
+    )
+
+    expected_pairs = set(LAYOUT_TYPOGRAPHY_PAIRS)
+    for split in ("train", "validation", "test"):
+        split_indices = [
+            index for index in source_indices if split_by_index[index] == split
+        ]
+        observed_pairs = {
+            (layout_by_index[index], typography_by_index[index])
+            for index in split_indices
+        }
+        assert observed_pairs == expected_pairs
+
+        for format_id in AMOUNT_FORMATS:
+            format_indices = [
+                index for index in split_indices
+                if format_by_index[index] == format_id
+            ]
+            assert len(format_indices) == 2
+            assert len({layout_by_index[index] for index in format_indices}) == 2
+            assert len({typography_by_index[index] for index in format_indices}) == 2
 
 
 def test_synthetic_dataset_builder_refuses_to_overwrite_nonempty_output(tmp_path):
