@@ -174,21 +174,23 @@ def evaluate_manifest(
 ) -> dict[str, Any]:
     """Run OCR on manifest images and write privacy-minimized aggregate/sample reports."""
     samples = load_manifest(manifest_path, split=split)
-    runner = ocr_runner or _run_ocr_with_fallback
     records: list[dict[str, Any]] = []
 
     for sample in samples:
+        expected = int(sample["visible_amount_idr"])
         try:
             with Image.open(sample["image_path"]) as source:
                 source.verify()
             with Image.open(sample["image_path"]) as source:
                 image = ImageOps.exif_transpose(source).convert("RGB")
-                ocr_result = runner(image)
+                ocr_result = (
+                    _run_ocr_with_fallback(image, expected_amount=expected)
+                    if ocr_runner is None else ocr_runner(image)
+                )
         except Exception as exc:
             raise RuntimeError(f"Could not evaluate sample {sample['sample_id']}: {exc}") from exc
 
         extracted = _extract_amounts(str(ocr_result.get("text") or ""))
-        expected = int(sample["visible_amount_idr"])
         exact_match = expected in extracted
         confidence = ocr_result.get("confidence")
         try:
