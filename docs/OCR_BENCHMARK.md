@@ -30,15 +30,17 @@ The API reports the selected method as `ocr_strategy`. Benchmark output includes
 - **Exact match rate when amount detected:** exact matches divided by samples where any amount was detected.
 - **Wrong-amount-only samples:** samples where OCR found one or more amounts but did not find the expected visible amount.
 - **Unexpected amount candidates:** extracted amount values that differ from the expected visible amount.
+- **Samples with unexpected candidates:** number and rate of images where OCR returned at least one non-target monetary value.
+- **Expected amount candidate precision:** expected target-amount hits divided by all extracted monetary candidates. A sample with the target amount plus two decoy amounts contributes one expected candidate and two unexpected candidates.
 - **Mean OCR confidence:** average Tesseract confidence when the engine returned a numeric value. This is not a calibrated probability of correctness.
 
-The report includes aggregate metrics, per-variant and per-layout breakdowns, breakdowns by amount format and typography profile, and all nine layout/typography cross-groups in each default split. Each grouped section also reports how often each OCR strategy was used. The manifest's `visible_amount_idr` is the target because the benchmark asks what OCR can read in the image as it exists, including deliberately edited variants.
+The report includes aggregate metrics, per-variant and per-layout breakdowns, breakdowns by amount format and typography profile, and all nine layout/typography cross-groups in each default split. Each grouped section also reports how often each OCR strategy was used. The manifest's `visible_amount_idr` is the transfer-amount target because the benchmark asks what OCR can read in the image as it exists, including deliberately edited variants. The dense-context fixture deliberately includes admin-fee and total-debit values; candidate precision shows whether OCR returns these alongside the target.
 
 ## Output and privacy
 
 The script writes:
-- `summary.json`: engine details, aggregate metrics, per-variant, per-layout, per-format, per-typography, and layout/typography cross-group metrics, with OCR strategy counts for each group.
-- `samples.csv`: sample identifier, layout, amount format, typography profile, variant, expected visible amount, extracted amount candidates, match flags, selected OCR strategy, and OCR confidence.
+- `summary.json`: engine details, exact-match/coverage/candidate-precision metrics, per-variant, per-layout, per-format, per-typography and layout/typography cross-group metrics, with OCR strategy counts for each group.
+- `samples.csv`: sample identifier, layout, amount format, typography profile, variant, expected visible amount, extracted amount candidates, candidate count, match flags, selected OCR strategy, and OCR confidence.
 
 Raw OCR text and image bytes are not copied into the report. The script accepts only manifest rows explicitly marked `synthetic_only=true`, validates the selected split, and prevents image paths from escaping the dataset directory.
 
