@@ -114,9 +114,12 @@ function renderResult(data) {
     };
     document.querySelector('#ocr-region-list').innerHTML = (data.ocr.amount_regions || []).map((region, index) => {
       const roleLabel = amountRoleLabels[region.amount_role] || 'Label belum dikenali';
+      const contextPosition = region.context_position === 'adjacent_label_above'
+        ? ' · label di atas nominal'
+        : region.context_position === 'same_line' ? ' · label sebaris' : '';
       const context = region.context_label ? ' (' + region.context_label + ')' : '';
       return '<div><span>' + (index + 1) + '</span><b>' + escapeHtml(formatRupiah(region.amount_idr)) +
-        '</b><small>' + escapeHtml(roleLabel + context) + ' · X ' + region.x + ' · Y ' + region.y +
+        '</b><small>' + escapeHtml(roleLabel + context + contextPosition) + ' · X ' + region.x + ' · Y ' + region.y +
         ' · ' + region.width + ' × ' + region.height + ' px</small></div>';
     }).join('');
     ocrAnnotation.classList.remove('hidden');

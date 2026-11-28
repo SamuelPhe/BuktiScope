@@ -478,6 +478,56 @@ def test_amount_regions_classify_transfer_fee_and_debit_total_labels():
     ]
 
 
+def test_amount_region_uses_nearby_label_above_the_amount_box():
+    from app.analyzer import _locate_amount_regions
+
+    text = "TOTAL TRANSFER Rp 250.000 BIAYA ADMIN Rp 2.500"
+    words = [
+        {"text": "TOTAL", "x": 100, "y": 100, "width": 50, "height": 18, "line_key": "label"},
+        {"text": "TRANSFER", "x": 155, "y": 100, "width": 70, "height": 18, "line_key": "label"},
+        {"text": "Rp", "x": 105, "y": 145, "width": 20, "height": 18, "line_key": "amount"},
+        {"text": "250.000", "x": 130, "y": 145, "width": 75, "height": 18, "line_key": "amount"},
+        {"text": "BIAYA", "x": 100, "y": 220, "width": 45, "height": 18, "line_key": "fee"},
+        {"text": "ADMIN", "x": 150, "y": 220, "width": 45, "height": 18, "line_key": "fee"},
+        {"text": "Rp", "x": 205, "y": 220, "width": 20, "height": 18, "line_key": "fee"},
+        {"text": "2.500", "x": 230, "y": 220, "width": 45, "height": 18, "line_key": "fee"},
+    ]
+
+    regions = _locate_amount_regions(text, words)
+
+    assert [region["amount_role"] for region in regions] == [
+        "transfer_labeled", "fee_labeled",
+    ]
+    assert regions[0]["context_label"] == "TOTAL TRANSFER"
+    assert regions[0]["context_position"] == "adjacent_label_above"
+    assert regions[1]["context_position"] == "same_line"
+
+
+def test_generic_transfer_heading_is_not_an_amount_label():
+    from app.analyzer import _classify_amount_line
+
+    assert _classify_amount_line("TRANSFER RECEIPT") == (
+        "unclassified", None
+    )
+
+
+def test_distant_amount_heading_is_not_associated_with_candidate():
+    from app.analyzer import _locate_amount_regions
+
+    regions = _locate_amount_regions(
+        "TOTAL TRANSFER Rp 250.000",
+        [
+            {"text": "TOTAL", "x": 100, "y": 10, "width": 50, "height": 18, "line_key": "label"},
+            {"text": "TRANSFER", "x": 155, "y": 10, "width": 70, "height": 18, "line_key": "label"},
+            {"text": "Rp", "x": 100, "y": 250, "width": 20, "height": 18, "line_key": "amount"},
+            {"text": "250.000", "x": 125, "y": 250, "width": 75, "height": 18, "line_key": "amount"},
+        ],
+    )
+
+    assert regions[0]["amount_role"] == "unclassified"
+    assert regions[0]["context_position"] is None
+
+
 def test_amount_regions_stay_unclassified_without_same_line_label():
     from app.analyzer import _locate_amount_regions
 
