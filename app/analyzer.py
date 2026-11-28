@@ -469,7 +469,7 @@ def _classify_amount_line(line_text: str) -> tuple[str, str | None]:
         ("balance_labeled", ("SALDO", "BALANCE")),
         ("transfer_labeled", (
             "NOMINAL TRANSFER", "JUMLAH TRANSFER", "TRANSFER AMOUNT",
-            "AMOUNT TRANSFER", "TOTAL TRANSFER", "TRANSFER",
+            "AMOUNT TRANSFER", "TOTAL TRANSFER",
         )),
         ("amount_labeled", ("NOMINAL", "AMOUNT", "JUMLAH")),
     )
