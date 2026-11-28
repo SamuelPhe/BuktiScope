@@ -32,7 +32,7 @@ The API reports the selected method as `ocr_strategy`. Benchmark output includes
 - **Unexpected amount candidates:** extracted amount values that differ from the expected visible amount.
 - **Samples with unexpected candidates:** number and rate of images where OCR returned at least one non-target monetary value.
 - **Expected amount candidate precision:** expected target-amount hits divided by all extracted monetary candidates. A sample with the target amount plus two decoy amounts contributes one expected candidate and two unexpected candidates.
-- **Amount-role labels:** a lexical heuristic checks words on the same OCR line as each amount (for example, `NOMINAL TRANSFER`, `BIAYA ADMIN`, or `TOTAL DEBIT`). It reports transfer-, fee-, debit-total-, balance-labeled, or unclassified candidates.
+- **Amount-role labels:** a lexical heuristic checks words on the same OCR line as each amount (for example, `NOMINAL TRANSFER`, `BIAYA ADMIN`, or `TOTAL DEBIT`). It reports explicitly transfer-labeled, generic amount-labeled, fee-labeled, debit-total-labeled, balance-labeled, or unclassified candidates. A generic `NOMINAL` label alone is not treated as proof that the value is a transfer amount.
 - **Transfer-label match rate:** among samples with an explicitly transfer-labeled amount candidate, the share where that candidate matches the expected visible amount. This is unavailable when no transfer label was recognized.
 - **Mean OCR confidence:** average Tesseract confidence when the engine returned a numeric value. This is not a calibrated probability of correctness.
 
