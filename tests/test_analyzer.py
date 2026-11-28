@@ -493,6 +493,14 @@ def test_amount_regions_stay_unclassified_without_same_line_label():
     assert regions[0]["context_label"] is None
 
 
+def test_generic_nominal_label_is_not_assumed_to_mean_transfer():
+    from app.analyzer import _classify_amount_line
+
+    assert _classify_amount_line("NOMINAL Rp 250.000") == (
+        "amount_labeled", "NOMINAL"
+    )
+
+
 def test_fee_label_takes_priority_over_transfer_word():
     from app.analyzer import _classify_amount_line
 
@@ -546,6 +554,7 @@ def test_analyzer_exposes_label_aware_amount_roles(monkeypatch):
     ]
     assert result["ocr"]["amount_role_counts"] == {
         "transfer_labeled": 1,
+        "amount_labeled": 0,
         "fee_labeled": 1,
         "debit_total_labeled": 1,
         "balance_labeled": 0,
