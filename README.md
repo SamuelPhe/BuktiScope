@@ -16,7 +16,7 @@ This project does not claim to be the first tool of its kind. Its intended contr
 
 - Accepts JPG, PNG, and WEBP; checks the decoded image format rather than trusting the filename.
 - Limits image requests to 10 MB and decoded images to 20 megapixels.
-- Reads visible text with Tesseract OCR when installed, preferring Indonesian (`ind`) and English (`eng`) language data.
+- Reads visible text with Tesseract OCR when installed, preferring Indonesian (`ind`) and English (`eng`) language data. Amount candidates can be annotated from explicit same-line labels such as transfer, admin fee, or debit total; ambiguous values remain unclassified.
 - When an expected order amount is supplied, retries with unsharp-mask PSM 6 and sparse-text PSM 11 if OCR found other money values but missed the target or read it below the confidence threshold. Without an expected amount, retries only when the primary pass finds no Rupiah value; the selected strategy is reported.
 - Extracts visible `Rp`/`IDR` amounts from OCR output and maps detected amount words to their original-image pixel coordinates when OCR word boxes are available. The UI can show a marked preview; it is only an OCR location hint.
 - Optionally compares OCR text with an expected order amount and recipient name. This is text matching, not account verification.
@@ -111,7 +111,7 @@ A reproducible benchmark measures whether Tesseract reads the visible Rupiah amo
 python -m scripts.evaluate_ocr --manifest data/synthetic/manifest.csv --split test --output-dir data/ocr-benchmark
 ```
 
-The report contains exact visible-amount match rate, amount-read coverage, expected-amount candidate precision, confidence summaries, breakdowns by variant/layout/amount format/typography, and OCR strategy counts for each group. It does not measure fraud-detection accuracy or payment authenticity. The benchmark accepts only rows marked `synthetic_only=true`, and it does not include raw OCR text in its output. See [docs/OCR_BENCHMARK.md](docs/OCR_BENCHMARK.md). A GitHub Actions workflow can generate the dataset, run the benchmark, and upload the report artifact.
+The report contains exact visible-amount match rate, amount-read coverage, expected-amount candidate precision, same-line amount-role metrics, confidence summaries, breakdowns by variant/layout/amount format/typography, and OCR strategy counts for each group. It does not measure fraud-detection accuracy or payment authenticity. The benchmark accepts only rows marked `synthetic_only=true`, and it does not include raw OCR text in its output. See [docs/OCR_BENCHMARK.md](docs/OCR_BENCHMARK.md). A GitHub Actions workflow can generate the dataset, run the benchmark, and upload the report artifact.
 
 
 ## Generate synthetic demo images

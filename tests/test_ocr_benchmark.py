@@ -133,11 +133,25 @@ def test_evaluate_manifest_reports_decoy_amount_candidates(tmp_path):
         return {
             "available": True,
             "text": (
-                "TRANSFER AMOUNT Rp 250.000 "
+                "NOMINAL TRANSFER Rp 250.000 "
                 "BIAYA ADMIN Rp 2.500 "
                 "TOTAL DEBIT Rp 252.500"
             ),
             "confidence": 92.0,
+            "words": [
+                {"text": "NOMINAL", "x": 10, "y": 10, "width": 55, "height": 16, "line_key": "1"},
+                {"text": "TRANSFER", "x": 70, "y": 10, "width": 65, "height": 16, "line_key": "1"},
+                {"text": "Rp", "x": 140, "y": 10, "width": 18, "height": 16, "line_key": "1"},
+                {"text": "250.000", "x": 165, "y": 10, "width": 65, "height": 16, "line_key": "1"},
+                {"text": "BIAYA", "x": 10, "y": 40, "width": 40, "height": 16, "line_key": "2"},
+                {"text": "ADMIN", "x": 55, "y": 40, "width": 42, "height": 16, "line_key": "2"},
+                {"text": "Rp", "x": 105, "y": 40, "width": 18, "height": 16, "line_key": "2"},
+                {"text": "2.500", "x": 130, "y": 40, "width": 45, "height": 16, "line_key": "2"},
+                {"text": "TOTAL", "x": 10, "y": 70, "width": 40, "height": 16, "line_key": "3"},
+                {"text": "DEBIT", "x": 55, "y": 70, "width": 40, "height": 16, "line_key": "3"},
+                {"text": "Rp", "x": 100, "y": 70, "width": 18, "height": 16, "line_key": "3"},
+                {"text": "252.500", "x": 125, "y": 70, "width": 65, "height": 16, "line_key": "3"},
+            ],
         }
 
     report = evaluate_manifest(
@@ -149,10 +163,34 @@ def test_evaluate_manifest_reports_decoy_amount_candidates(tmp_path):
     assert report["metrics"]["samples_with_unexpected_amount_candidates"] == 1
     assert report["metrics"]["total_amount_candidates"] == 3
     assert report["metrics"]["expected_amount_candidate_precision"] == 0.3333
+    assert report["metrics"]["amount_role_counts"] == {
+        "transfer_labeled": 1,
+        "amount_labeled": 0,
+        "fee_labeled": 1,
+        "debit_total_labeled": 1,
+        "balance_labeled": 0,
+        "unclassified": 0,
+    }
+    assert report["metrics"]["samples_with_transfer_labeled_amount"] == 1
+    assert report["metrics"]["expected_transfer_labeled_amount_matches"] == 1
+    assert report["metrics"]["expected_transfer_labeled_candidate_count"] == 1
+    assert report["metrics"]["expected_transfer_label_match_rate_when_labeled"] == 1.0
+    assert report["metrics"]["transfer_labeled_candidate_precision"] == 1.0
     with (output_dir / "samples.csv").open(encoding="utf-8", newline="") as handle:
         row = next(csv.DictReader(handle))
     assert row["amount_candidate_count"] == "3"
     assert row["extracted_amounts_idr"] == "[250000, 2500, 252500]"
+    assert json.loads(row["amount_role_counts"]) == {
+        "transfer_labeled": 1,
+        "amount_labeled": 0,
+        "fee_labeled": 1,
+        "debit_total_labeled": 1,
+        "balance_labeled": 0,
+        "unclassified": 0,
+    }
+    assert json.loads(row["transfer_labeled_amounts_idr"]) == [250000]
+    assert row["expected_in_transfer_label"] == "True"
+    assert row["expected_transfer_labeled_candidate_count"] == "1"
 
 
 def test_manifest_rejects_non_synthetic_rows(tmp_path):

@@ -439,6 +439,129 @@ def test_locate_amount_regions_from_ocr_word_boxes(monkeypatch):
     assert regions[0]["height"] == 22
 
 
+def test_amount_regions_classify_transfer_fee_and_debit_total_labels():
+    from app.analyzer import _locate_amount_regions
+
+    text = (
+        "NOMINAL TRANSFER Rp 250.000 "
+        "BIAYA ADMIN Rp 2.500 "
+        "TOTAL DEBIT Rp 252.500"
+    )
+    tokens = [
+        ("NOMINAL", "line-1"), ("TRANSFER", "line-1"),
+        ("Rp", "line-1"), ("250.000", "line-1"),
+        ("BIAYA", "line-2"), ("ADMIN", "line-2"),
+        ("Rp", "line-2"), ("2.500", "line-2"),
+        ("TOTAL", "line-3"), ("DEBIT", "line-3"),
+        ("Rp", "line-3"), ("252.500", "line-3"),
+    ]
+    words = [
+        {
+            "text": token,
+            "x": index * 40,
+            "y": 100 + (int(line[-1]) - 1) * 30,
+            "width": 35,
+            "height": 18,
+            "line_key": line,
+        }
+        for index, (token, line) in enumerate(tokens)
+    ]
+
+    regions = _locate_amount_regions(text, words)
+
+    assert [item["amount_idr"] for item in regions] == [250000, 2500, 252500]
+    assert [item["amount_role"] for item in regions] == [
+        "transfer_labeled", "fee_labeled", "debit_total_labeled",
+    ]
+    assert [item["context_label"] for item in regions] == [
+        "NOMINAL TRANSFER", "BIAYA ADMIN", "TOTAL DEBIT",
+    ]
+
+
+def test_amount_regions_stay_unclassified_without_same_line_label():
+    from app.analyzer import _locate_amount_regions
+
+    regions = _locate_amount_regions(
+        "Rp 250.000",
+        [
+            {"text": "Rp", "x": 10, "y": 10, "width": 20, "height": 18},
+            {"text": "250.000", "x": 35, "y": 10, "width": 70, "height": 18},
+        ],
+    )
+
+    assert regions[0]["amount_role"] == "unclassified"
+    assert regions[0]["context_label"] is None
+
+
+def test_generic_nominal_label_is_not_assumed_to_mean_transfer():
+    from app.analyzer import _classify_amount_line
+
+    assert _classify_amount_line("NOMINAL Rp 250.000") == (
+        "amount_labeled", "NOMINAL"
+    )
+
+
+def test_fee_label_takes_priority_over_transfer_word():
+    from app.analyzer import _classify_amount_line
+
+    assert _classify_amount_line("BIAYA TRANSFER Rp 2.500") == (
+        "fee_labeled", "BIAYA TRANSFER"
+    )
+
+
+def test_analyzer_exposes_label_aware_amount_roles(monkeypatch):
+    text = (
+        "NOMINAL TRANSFER Rp 250.000 "
+        "BIAYA ADMIN Rp 2.500 "
+        "TOTAL DEBIT Rp 252.500"
+    )
+    tokens = [
+        ("NOMINAL", "line-1"), ("TRANSFER", "line-1"),
+        ("Rp", "line-1"), ("250.000", "line-1"),
+        ("BIAYA", "line-2"), ("ADMIN", "line-2"),
+        ("Rp", "line-2"), ("2.500", "line-2"),
+        ("TOTAL", "line-3"), ("DEBIT", "line-3"),
+        ("Rp", "line-3"), ("252.500", "line-3"),
+    ]
+    words = [
+        {
+            "text": token,
+            "x": index * 40,
+            "y": 100 + (int(line[-1]) - 1) * 30,
+            "width": 35,
+            "height": 18,
+            "line_key": line,
+        }
+        for index, (token, line) in enumerate(tokens)
+    ]
+
+    monkeypatch.setattr(analyzer_module, "_run_ocr", lambda image, psm=6: {
+        "available": True,
+        "language": "ind+eng",
+        "text": text,
+        "confidence": 94.0,
+        "words": words,
+    })
+    result = Analyzer.create().analyze(
+        png_bytes(), "receipt.png", expected_amount=250000
+    )
+
+    assert result["comparison"]["amount_match"] is True
+    assert result["ocr"]["amounts_idr"] == [250000, 2500, 252500]
+    assert result["ocr"]["transfer_labeled_amounts_idr"] == [250000]
+    assert [region["amount_role"] for region in result["ocr"]["amount_regions"]] == [
+        "transfer_labeled", "fee_labeled", "debit_total_labeled",
+    ]
+    assert result["ocr"]["amount_role_counts"] == {
+        "transfer_labeled": 1,
+        "amount_labeled": 0,
+        "fee_labeled": 1,
+        "debit_total_labeled": 1,
+        "balance_labeled": 0,
+        "unclassified": 0,
+    }
+
+
 def test_analyzer_returns_ocr_overlay_for_detected_amount(monkeypatch):
     monkeypatch.setattr(analyzer_module, "_run_ocr", lambda image: {
         "available": True,
@@ -481,3 +604,5 @@ def test_tesseract_word_coordinates_scale_back_to_original_image(monkeypatch):
     assert result["words"][0]["y"] == 26
     assert result["words"][0]["width"] == 133
     assert result["words"][0]["height"] == 33
+    assert result["words"][0]["line_key"] == "1:1:1"
+    assert result["words"][1]["line_key"] == "1:1:1"

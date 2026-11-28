@@ -11,7 +11,13 @@ from typing import Any, Callable
 
 from PIL import Image, ImageOps
 
-from app.analyzer import _extract_amounts, _run_ocr_with_fallback, _tesseract_binary, _tesseract_languages
+from app.analyzer import (
+    _extract_amounts,
+    _locate_amount_regions,
+    _run_ocr_with_fallback,
+    _tesseract_binary,
+    _tesseract_languages,
+)
 
 SPLITS = ("train", "validation", "test")
 REQUIRED_COLUMNS = {
@@ -127,6 +133,26 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
         int(item.get("amount_candidate_count", len(item.get("extracted_amounts_idr", []))))
         for item in records
     )
+    role_names = (
+        "transfer_labeled", "amount_labeled", "fee_labeled",
+        "debit_total_labeled", "balance_labeled", "unclassified",
+    )
+    amount_role_counts = {
+        role: sum(int(item.get("amount_role_counts", {}).get(role, 0)) for item in records)
+        for role in role_names
+    }
+    transfer_candidate_count = amount_role_counts["transfer_labeled"]
+    expected_transfer_matches = sum(
+        bool(item.get("expected_in_transfer_label")) for item in records
+    )
+    expected_transfer_candidate_count = sum(
+        int(item.get("expected_transfer_labeled_candidate_count", 0))
+        for item in records
+    )
+    transfer_labeled_sample_count = sum(
+        int(item.get("amount_role_counts", {}).get("transfer_labeled", 0)) > 0
+        for item in records
+    )
     confidence_values = [
         float(item["confidence"])
         for item in records
@@ -145,6 +171,18 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
         "unexpected_candidate_sample_rate": _rate(unexpected_sample_count, sample_count),
         "total_amount_candidates": total_candidate_count,
         "expected_amount_candidate_precision": _rate(exact_count, total_candidate_count),
+        "amount_role_counts": amount_role_counts,
+        "samples_with_transfer_labeled_amount": transfer_labeled_sample_count,
+        "expected_transfer_labeled_amount_matches": expected_transfer_matches,
+        "expected_transfer_labeled_candidate_count": expected_transfer_candidate_count,
+        "expected_transfer_label_match_rate_when_labeled": (
+            _rate(expected_transfer_matches, transfer_labeled_sample_count)
+            if transfer_labeled_sample_count else None
+        ),
+        "transfer_labeled_candidate_precision": (
+            _rate(expected_transfer_candidate_count, transfer_candidate_count)
+            if transfer_candidate_count else None
+        ),
         "exact_amount_match_rate": _rate(exact_count, sample_count),
         "amount_read_coverage_rate": _rate(detected_count, sample_count),
         "exact_match_rate_when_amount_detected": _rate(exact_count, detected_count),
@@ -190,7 +228,23 @@ def evaluate_manifest(
         except Exception as exc:
             raise RuntimeError(f"Could not evaluate sample {sample['sample_id']}: {exc}") from exc
 
-        extracted = _extract_amounts(str(ocr_result.get("text") or ""))
+        ocr_text = str(ocr_result.get("text") or "")
+        extracted = _extract_amounts(ocr_text)
+        amount_regions = _locate_amount_regions(ocr_text, ocr_result.get("words", []))
+        transfer_labeled_amounts = [
+            region["amount_idr"] for region in amount_regions
+            if region["amount_role"] == "transfer_labeled"
+        ]
+        expected_transfer_candidate_count = sum(
+            amount == expected for amount in transfer_labeled_amounts
+        )
+        amount_role_counts = {
+            role: sum(1 for region in amount_regions if region["amount_role"] == role)
+            for role in (
+                "transfer_labeled", "amount_labeled", "fee_labeled",
+                "debit_total_labeled", "balance_labeled", "unclassified",
+            )
+        }
         exact_match = expected in extracted
         confidence = ocr_result.get("confidence")
         try:
@@ -213,6 +267,10 @@ def evaluate_manifest(
             "exact_amount_match": exact_match,
             "unexpected_amount_count": sum(amount != expected for amount in extracted),
             "amount_candidate_count": len(extracted),
+            "amount_role_counts": amount_role_counts,
+            "transfer_labeled_amounts_idr": transfer_labeled_amounts,
+            "expected_in_transfer_label": expected in transfer_labeled_amounts,
+            "expected_transfer_labeled_candidate_count": expected_transfer_candidate_count,
             "ocr_available": bool(ocr_result.get("available")),
             "ocr_strategy": str(ocr_result.get("ocr_strategy") or "custom"),
             "confidence": confidence_value,
@@ -273,7 +331,9 @@ def evaluate_manifest(
         "sample_id", "split", "variant", "layout_id", "amount_format_id",
         "typography_profile_id", "expected_visible_amount_idr",
         "extracted_amounts_idr", "amount_detected", "exact_amount_match",
-        "unexpected_amount_count", "amount_candidate_count",
+        "unexpected_amount_count", "amount_candidate_count", "amount_role_counts",
+        "transfer_labeled_amounts_idr", "expected_in_transfer_label",
+        "expected_transfer_labeled_candidate_count",
         "ocr_available", "ocr_strategy", "confidence",
     ]
     with (output_dir / "samples.csv").open("w", newline="", encoding="utf-8") as handle:
@@ -282,6 +342,8 @@ def evaluate_manifest(
         for record in records:
             row = dict(record)
             row["extracted_amounts_idr"] = json.dumps(row["extracted_amounts_idr"])
+            row["amount_role_counts"] = json.dumps(row["amount_role_counts"])
+            row["transfer_labeled_amounts_idr"] = json.dumps(row["transfer_labeled_amounts_idr"])
             writer.writerow(row)
 
     return report
