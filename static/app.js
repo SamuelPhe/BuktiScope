@@ -106,6 +106,7 @@ function renderResult(data) {
     document.querySelector('#ocr-overlay-image').src = ocrOverlay;
     const amountRoleLabels = {
       transfer_labeled: 'Label: nominal transfer',
+      amount_labeled: 'Label: nominal umum',
       fee_labeled: 'Label: biaya/admin',
       debit_total_labeled: 'Label: total debit',
       balance_labeled: 'Label: saldo',
